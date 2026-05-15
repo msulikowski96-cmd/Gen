@@ -1,0 +1,8 @@
+{
+  "name": "Nexus Sight Card Generator",
+  "description": "A card generator for Nexus Sight, creating stats card images dynamically using Satori.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
