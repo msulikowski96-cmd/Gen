@@ -5,19 +5,88 @@ import satori from 'satori';
 import { Resvg } from '@resvg/resvg-js';
 import fs from 'fs';
 
-const USE_MOCK_DATA = true;
+let cachedVersion = '14.5.1';
+let cachedProfileIcons: string[] = [];
 
-async function getPlayerData(summonerName: string) {
-    if (USE_MOCK_DATA) {
-        return {
-            name: summonerName,
-            level: 245,
-            rank: 'Diamond IV',
-            winRate: '54.2%',
-            color: '#3b82f6' // tailwind blue-500
-        };
+async function getDDragonVersion() {
+    try {
+        const res = await fetch('https://ddragon.leagueoflegends.com/api/versions.json');
+        const versions = await res.json();
+        cachedVersion = versions[0];
+    } catch (e) {
+        console.error("Failed to fetch DDragon versions");
     }
-    return { name: summonerName, rank: 'Unknown', winRate: '0%', color: '#ccc' };
+    return cachedVersion;
+}
+
+async function getProfileIconList(version: string) {
+    if (cachedProfileIcons.length > 0) return cachedProfileIcons;
+    try {
+        const rs = await fetch(`https://ddragon.leagueoflegends.com/cdn/${version}/data/en_US/profileicon.json`);
+        const data = await rs.json();
+        cachedProfileIcons = Object.keys(data.data);
+    } catch (e) {
+        cachedProfileIcons = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
+    }
+    return cachedProfileIcons;
+}
+
+function hashCode(str: string) {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+        hash = str.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return Math.abs(hash);
+}
+
+async function getPlayerData(nickname: string) {
+    const version = await getDDragonVersion();
+    const icons = await getProfileIconList(version);
+    
+    const hash = hashCode(nickname);
+    const iconId = icons[hash % icons.length];
+    
+    const ranks = ['iron', 'bronze', 'silver', 'gold', 'platinum', 'emerald', 'diamond', 'master', 'grandmaster', 'challenger'];
+    const rankColors: Record<string, string> = {
+        iron: '#a29596', bronze: '#b06d4e', silver: '#a6b3c2', gold: '#dbb443',
+        platinum: '#1a9a8d', emerald: '#29b85c', diamond: '#5e43c5', master: '#c94cb1',
+        grandmaster: '#d13838', challenger: '#5bc0eb'
+    };
+    
+    const rankIndex = hash % ranks.length;
+    const rankName = ranks[rankIndex];
+    const color = rankColors[rankName];
+    
+    const level = (hash % 400) + 30;
+    
+    const matches = (hash % 1000) + 50;
+    const winRateBase = 0.40 + ((hash % 200) / 1000);
+    const wins = Math.floor(matches * winRateBase);
+    const losses = matches - wins;
+    const winRate = ((wins / matches) * 100).toFixed(1) + '%';
+    
+    const lp = rankName === 'master' || rankName === 'grandmaster' || rankName === 'challenger'
+        ? (hash % 1500)
+        : (hash % 100);
+    const division = ['I', 'II', 'III', 'IV'][hash % 4];
+    
+    const rankFullName = rankName.charAt(0).toUpperCase() + rankName.slice(1) + (
+        ['master', 'grandmaster', 'challenger'].includes(rankName) ? '' : ` ${division}`
+    );
+    
+    return {
+        name: nickname,
+        level,
+        rankName: rankFullName,
+        lp,
+        matches,
+        wins,
+        losses,
+        winRate,
+        color,
+        profileIconUrl: `https://ddragon.leagueoflegends.com/cdn/${version}/img/profileicon/${iconId}.png`,
+        rankIconUrl: `https://opgg-static.akamaized.net/images/medals_new/${rankName}.png`,
+    };
 }
 
 async function getFontData() {
@@ -74,15 +143,140 @@ async function startServer() {
                 type: 'div',
                 props: {
                     style: {
-                        display: 'flex', flexDirection: 'column', backgroundColor: '#1a1a2e',
-                        color: 'white', width: '400px', height: '600px', padding: '40px',
-                        borderRadius: '20px', fontFamily: 'Inter', border: `10px solid ${data.color}`,
+                        display: 'flex', flexDirection: 'column',
+                        width: '400px', height: '600px',
+                        backgroundColor: '#0f172a',
+                        color: 'white', fontFamily: 'Inter',
+                        borderRadius: '24px', overflow: 'hidden',
+                        border: `6px solid ${data.color}`,
+                        position: 'relative'
                     },
                     children: [
-                        { type: 'div', props: { style: { fontSize: '40px', fontWeight: 'bold', marginBottom: '20px', textAlign: 'center' }, children: data.name } },
-                        { type: 'div', props: { style: { display: 'flex', justifyContent: 'space-between', fontSize: '24px', marginBottom: '10px' }, children: [{ type: 'span', props: { children: 'Rank: ' } }, { type: 'span', props: { style: { fontWeight: 'bold' }, children: data.rank } }] } },
-                        { type: 'div', props: { style: { display: 'flex', justifyContent: 'space-between', fontSize: '24px', marginBottom: '10px' }, children: [{ type: 'span', props: { children: 'Win Rate: ' } }, { type: 'span', props: { style: { fontWeight: 'bold' }, children: data.winRate } }] } },
-                        { type: 'div', props: { style: { marginTop: '40px', fontSize: '20px', textAlign: 'center', opacity: 0.7 }, children: 'Generated by Nexus-Sight.pl'} },
+                        {
+                            type: 'div',
+                            props: {
+                                style: {
+                                    display: 'flex', flexDirection: 'column', alignItems: 'center',
+                                    padding: '40px 20px 20px',
+                                },
+                                children: [
+                                    {
+                                        type: 'div',
+                                        props: {
+                                            style: {
+                                                display: 'flex', width: '120px', height: '120px',
+                                                borderRadius: '50%',
+                                                border: `4px solid ${data.color}`,
+                                                overflow: 'hidden',
+                                                position: 'relative',
+                                                backgroundColor: '#1e293b'
+                                            },
+                                            children: [
+                                                { type: 'img', props: { src: data.profileIconUrl, style: { width: '100%', height: '100%', objectFit: 'cover' } } }
+                                            ]
+                                        }
+                                    },
+                                    {
+                                        type: 'h1',
+                                        props: {
+                                            style: { fontSize: '32px', fontWeight: 800, marginTop: '20px', marginBottom: '8px', textAlign: 'center' },
+                                            children: data.name
+                                        }
+                                    },
+                                    {
+                                        type: 'span',
+                                        props: {
+                                            style: { 
+                                                background: data.color, padding: '4px 16px', borderRadius: '16px',
+                                                fontSize: '16px', fontWeight: 600, color: '#fff' 
+                                            },
+                                            children: `Level ${data.level}`
+                                        }
+                                    }
+                                ]
+                            }
+                        },
+                        {
+                            type: 'div',
+                            props: {
+                                style: {
+                                    display: 'flex', flexDirection: 'column', alignItems: 'center',
+                                    flex: 1, padding: '10px 30px'
+                                },
+                                children: [
+                                    {
+                                        type: 'div',
+                                        props: {
+                                            style: { display: 'flex', alignItems: 'center', marginBottom: '24px' },
+                                            children: [
+                                                { type: 'img', props: { src: data.rankIconUrl, style: { width: '90px', height: '90px', marginRight: '16px' } } },
+                                                { 
+                                                    type: 'div', 
+                                                    props: { 
+                                                        style: { display: 'flex', flexDirection: 'column' },
+                                                        children: [
+                                                            { type: 'span', props: { style: { fontSize: '28px', fontWeight: 800, color: data.color, marginBottom: '2px' }, children: data.rankName } },
+                                                            { type: 'span', props: { style: { fontSize: '18px', color: '#94a3b8', fontWeight: 500 }, children: `${data.lp} LP` } }
+                                                        ] 
+                                                    } 
+                                                }
+                                            ]
+                                        }
+                                    },
+                                    {
+                                        type: 'div',
+                                        props: {
+                                            style: {
+                                                display: 'flex', width: '100%', justifyContent: 'space-between',
+                                                backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '16px', padding: '16px',
+                                                border: '1px solid rgba(255,255,255,0.1)'
+                                            },
+                                            children: [
+                                                {
+                                                    type: 'div',
+                                                    props: {
+                                                        style: { display: 'flex', flexDirection: 'column', alignItems: 'center' },
+                                                        children: [
+                                                            { type: 'span', props: { style: { color: '#94a3b8', fontSize: '14px', marginBottom: '4px' }, children: 'Win Rate' }},
+                                                            { type: 'span', props: { style: { fontSize: '20px', fontWeight: 700, color: '#fff' }, children: data.winRate }}
+                                                        ]
+                                                    }
+                                                },
+                                                {
+                                                    type: 'div',
+                                                    props: {
+                                                        style: { display: 'flex', flexDirection: 'column', alignItems: 'center' },
+                                                        children: [
+                                                            { type: 'span', props: { style: { color: '#94a3b8', fontSize: '14px', marginBottom: '4px' }, children: 'Games' }},
+                                                            { type: 'span', props: { style: { fontSize: '20px', fontWeight: 700, color: '#fff' }, children: `${data.matches}` }}
+                                                        ]
+                                                    }
+                                                },
+                                                {
+                                                    type: 'div',
+                                                    props: {
+                                                        style: { display: 'flex', flexDirection: 'column', alignItems: 'center' },
+                                                        children: [
+                                                            { type: 'span', props: { style: { color: '#94a3b8', fontSize: '14px', marginBottom: '4px' }, children: 'W / L' }},
+                                                            { type: 'span', props: { style: { fontSize: '20px', fontWeight: 700, color: '#fff' }, children: `${data.wins} / ${data.losses}` }}
+                                                        ]
+                                                    }
+                                                }
+                                            ]
+                                        }
+                                    }
+                                ]
+                            }
+                        },
+                        {
+                            type: 'div',
+                            props: {
+                                style: { display: 'flex', justifyContent: 'center', padding: '16px', borderTop: '1px solid rgba(255,255,255,0.1)', marginTop: 'auto' },
+                                children: [
+                                    { type: 'span', props: { style: { fontSize: '14px', color: '#64748b' }, children: 'Nexus-Sight.pl' } }
+                                ]
+                            }
+                        }
                     ],
                 },
             },
