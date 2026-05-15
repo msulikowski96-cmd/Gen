@@ -3,6 +3,7 @@ import { Loader2, Download, AlertCircle } from 'lucide-react';
 
 export default function App() {
   const [nickname, setNickname] = useState('');
+  const [platform, setPlatform] = useState('euw1');
   const [image, setImage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -16,7 +17,7 @@ export default function App() {
       const response = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nickname }),
+        body: JSON.stringify({ nickname, platform }),
       });
       if (!response.ok) {
         let errorMsg = 'Failed to generate card. Please try again.';
@@ -39,17 +40,34 @@ export default function App() {
     <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-slate-900 text-white font-sans">
       <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&q=80')] bg-cover bg-center opacity-10 pointer-events-none" />
       
-      <div className="relative z-10 flex flex-col items-center w-full max-w-lg">
+      <div className="relative z-10 flex flex-col items-center w-full max-w-xl">
         <h1 className="text-4xl md:text-5xl font-extrabold mb-2 text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-indigo-500 to-purple-600 text-center drop-shadow-sm">
           Nexus Sight
         </h1>
         <p className="text-slate-400 mb-8 font-medium">Dynamic Player Card Generator</p>
         
         <div className="flex flex-col sm:flex-row gap-3 mb-8 w-full">
+          <select 
+            className="px-4 py-4 rounded-xl bg-slate-800/80 backdrop-blur border border-slate-700 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-xl"
+            value={platform}
+            onChange={(e) => setPlatform(e.target.value)}
+          >
+            <option value="euw1">EUW</option>
+            <option value="eun1">EUNE</option>
+            <option value="na1">NA</option>
+            <option value="kr">KR</option>
+            <option value="br1">BR</option>
+            <option value="la1">LAN</option>
+            <option value="la2">LAS</option>
+            <option value="oc1">OCE</option>
+            <option value="tr1">TR</option>
+            <option value="ru">RU</option>
+            <option value="jp1">JP</option>
+          </select>
           <input
             type="text"
             className="flex-1 px-5 py-4 rounded-xl bg-slate-800/80 backdrop-blur border border-slate-700 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-xl transition-all"
-            placeholder="Enter Summoner Name..."
+            placeholder="Riot ID (e.g., Faker#KR1)"
             value={nickname}
             onChange={(e) => setNickname(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && generateCard()}

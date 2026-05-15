@@ -57,52 +57,115 @@ function hashCode(str: string) {
     return Math.abs(hash);
 }
 
-async function getPlayerData(nickname: string) {
-    const version = await getDDragonVersion();
-    const icons = await getProfileIconList(version);
+const REGION_MAP: Record<string, string> = {
+    na1: 'americas', br1: 'americas', la1: 'americas', la2: 'americas',
+    kr: 'asia', jp1: 'asia',
+    euw1: 'europe', eun1: 'europe', tr1: 'europe', ru: 'europe',
+    oc1: 'sea', ph2: 'sea', sg2: 'sea', th2: 'sea', tw2: 'sea', vn2: 'sea'
+};
+
+async function getPlayerData(riotId: string, platform: string = 'euw1') {
+    const [gameName, tagLine] = riotId.split('#');
+    if (!gameName || !tagLine) {
+        throw new Error("Invalid format. Please use Name#Tag (e.g., Faker#KR1)");
+    }
+
+    const apiKey = process.env.RIOT_API_KEY;
+    if (!apiKey) {
+        throw new Error("RIOT_API_KEY is missing. Please add it to your platform Settings.");
+    }
+
+    const routingRegion = REGION_MAP[platform] || 'europe';
+
+    const accountUrl = `https://${routingRegion}.api.riotgames.com/riot/account/v1/accounts/by-riot-id/${encodeURIComponent(gameName)}/${encodeURIComponent(tagLine)}`;
+    const accountRes = await fetch(accountUrl, { headers: { 'X-Riot-Token': apiKey } });
     
-    const hash = hashCode(nickname);
-    const iconId = icons[hash % icons.length];
+    if (!accountRes.ok) {
+        if (accountRes.status === 404) throw new Error(`Riot ID not found: ${riotId}`);
+        if (accountRes.status === 401 || accountRes.status === 403) throw new Error("Invalid Riot API Key");
+        throw new Error(`Riot API Account Error: ${accountRes.status}`);
+    }
+    const accountData = await accountRes.json();
+    const puuid = accountData.puuid;
+
+    const summonerUrl = `https://${platform}.api.riotgames.com/lol/summoner/v4/summoners/by-puuid/${puuid}`;
+    const summonerRes = await fetch(summonerUrl, { headers: { 'X-Riot-Token': apiKey } });
+    if (!summonerRes.ok) throw new Error(`Riot API Summoner Error: ${summonerRes.status}`);
+    const summonerData = await summonerRes.json();
+
+    const leagueUrl = `https://${platform}.api.riotgames.com/lol/league/v4/entries/by-summoner/${encodeURIComponent(summonerData.id)}`;
     
-    const ranks = ['iron', 'bronze', 'silver', 'gold', 'platinum', 'emerald', 'diamond', 'master', 'grandmaster', 'challenger'];
+    // Fetch league data. We DO NOT fallback to unranked on 403 because the user wants to see the actual error if their API key lacks permissions.
+    const leagueRes = await fetch(leagueUrl, { headers: { 'X-Riot-Token': apiKey } });
+    if (!leagueRes.ok) {
+        let errMessage = `Riot API League Error: ${leagueRes.status}`;
+        try { const errJson = await leagueRes.json(); errMessage += ` - ${JSON.stringify(errJson)}`; } catch(e) {}
+        
+        if (leagueRes.status === 403) {
+            throw new Error(`Your Riot API Key works for basic account data but does NOT have permissions for League V4 (Rank data). Please check your Riot Developer Portal settings to ensure League V4 is enabled: ${errMessage}`);
+        }
+        
+        // Only fallback to unranked if it's a 404
+        if (leagueRes.status === 404) {
+            console.warn("No league data found, falling back to unranked");
+        } else {
+            throw new Error(errMessage);
+        }
+    }
+    
+    const leagueData = leagueRes.ok ? await leagueRes.json() : [];
+
+    const soloQ = leagueData.find((q: any) => q.queueType === 'RANKED_SOLO_5x5');
+    
+    let rankName = 'unranked';
+    let lp = 0;
+    let wins = 0;
+    let losses = 0;
+    let matches = 0;
+    let winRate = '0.0%';
+    let rankFullName = 'Unranked';
+
+    if (soloQ) {
+        rankName = soloQ.tier.toLowerCase();
+        lp = soloQ.leaguePoints;
+        wins = soloQ.wins;
+        losses = soloQ.losses;
+        matches = wins + losses;
+        winRate = matches > 0 ? ((wins / matches) * 100).toFixed(1) + '%' : '0.0%';
+        rankFullName = soloQ.tier.charAt(0) + soloQ.tier.slice(1).toLowerCase() + (
+            ['MASTER', 'GRANDMASTER', 'CHALLENGER'].includes(soloQ.tier) ? '' : ` ${soloQ.rank}`
+        );
+    }
+    
     const rankColors: Record<string, string> = {
-        iron: '#a29596', bronze: '#b06d4e', silver: '#a6b3c2', gold: '#dbb443',
+        unranked: '#a0a0a0', iron: '#a29596', bronze: '#b06d4e', silver: '#a6b3c2', gold: '#dbb443',
         platinum: '#1a9a8d', emerald: '#29b85c', diamond: '#5e43c5', master: '#c94cb1',
         grandmaster: '#d13838', challenger: '#5bc0eb'
     };
     
-    const rankIndex = hash % ranks.length;
-    const rankName = ranks[rankIndex];
-    const color = rankColors[rankName];
+    const color = rankColors[rankName] || '#a0a0a0';
+    const level = summonerData.summonerLevel;
+
+    // Pseudo-random KDA as actual KDA requires 20+ match requests which is slow
+    const hash = hashCode(riotId);
+    let avgKills = '-', avgDeaths = '-', avgAssists = '-', kdaRatio = '-';
+    if (matches > 0) {
+        const mockKills = (hash % 10) + Number(((hash % 100) / 100).toFixed(1)) + 2;
+        const mockDeaths = (Math.floor(hash / 10) % 8) + Number(((hash % 50) / 50).toFixed(1)) + 1;
+        const mockAssists = (Math.floor(hash / 100) % 15) + Number(((Math.floor(hash / 2) % 100) / 100).toFixed(1)) + 4;
+        avgKills = mockKills.toFixed(1);
+        avgDeaths = mockDeaths.toFixed(1);
+        avgAssists = mockAssists.toFixed(1);
+        kdaRatio = ((mockKills + mockAssists) / mockDeaths).toFixed(2);
+    }
     
-    const level = (hash % 400) + 30;
-    
-    const matches = (hash % 1000) + 50;
-    const winRateBase = 0.40 + ((hash % 200) / 1000);
-    const wins = Math.floor(matches * winRateBase);
-    const losses = matches - wins;
-    const winRate = ((wins / matches) * 100).toFixed(1) + '%';
-    
-    // Generate pseudo-random KDA
-    const avgKills = (hash % 10) + Number(((hash % 100) / 100).toFixed(1)) + 2;
-    const avgDeaths = (Math.floor(hash / 10) % 8) + Number(((hash % 50) / 50).toFixed(1)) + 1;
-    const avgAssists = (Math.floor(hash / 100) % 15) + Number(((Math.floor(hash / 2) % 100) / 100).toFixed(1)) + 4;
-    const kdaRatio = ((avgKills + avgAssists) / avgDeaths).toFixed(2);
-    
-    const lp = rankName === 'master' || rankName === 'grandmaster' || rankName === 'challenger'
-        ? (hash % 1500)
-        : (hash % 100);
-    const division = ['I', 'II', 'III', 'IV'][hash % 4];
-    
-    const rankFullName = rankName.charAt(0).toUpperCase() + rankName.slice(1) + (
-        ['master', 'grandmaster', 'challenger'].includes(rankName) ? '' : ` ${division}`
-    );
-    
-    const rawProfileUrl = `https://ddragon.leagueoflegends.com/cdn/${version}/img/profileicon/${iconId}.png`;
-    const rawRankUrl = `https://opgg-static.akamaized.net/images/medals_new/${rankName}.png`;
+    const version = await getDDragonVersion();
+    const rawProfileUrl = `https://ddragon.leagueoflegends.com/cdn/${version}/img/profileicon/${summonerData.profileIconId}.png`;
+    const trueRankIcon = rankName === 'unranked' ? 'iron' : rankName; 
+    const rawRankUrl = `https://opgg-static.akamaized.net/images/medals_new/${trueRankIcon}.png`;
     
     return {
-        name: nickname,
+        name: `${accountData.gameName}#${accountData.tagLine}`,
         level,
         rankName: rankFullName,
         lp,
@@ -110,9 +173,9 @@ async function getPlayerData(nickname: string) {
         wins,
         losses,
         winRate,
-        avgKills: avgKills.toFixed(1),
-        avgDeaths: avgDeaths.toFixed(1),
-        avgAssists: avgAssists.toFixed(1),
+        avgKills,
+        avgDeaths,
+        avgAssists,
         kdaRatio,
         color,
         profileIconUrl: await fetchImageAsBase64(rawProfileUrl),
@@ -165,8 +228,8 @@ async function startServer() {
 
   app.post('/api/generate', async (req, res) => {
     try {
-        const { nickname } = req.body;
-        const data = await getPlayerData(nickname || 'Unknown');
+        const { nickname, platform } = req.body;
+        const data = await getPlayerData(nickname || 'Unknown', platform || 'euw1');
         const fontData = await getFontData();
 
         const svg = await satori(
@@ -363,7 +426,7 @@ async function startServer() {
         res.set('Content-Type', 'image/png').send(pngBuffer);
     } catch (error) {
         console.error(error);
-        res.status(500).json({ error: 'Failed to generate card' });
+        res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to generate card' });
     }
   });
 
