@@ -7,6 +7,24 @@ import fs from 'fs';
 
 let cachedVersion = '14.5.1';
 let cachedProfileIcons: string[] = [];
+const imageCache = new Map<string, string>();
+
+async function fetchImageAsBase64(url: string): Promise<string> {
+    if (imageCache.has(url)) return imageCache.get(url)!;
+    try {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const buffer = await res.arrayBuffer();
+        const base64 = Buffer.from(buffer).toString('base64');
+        const mimeType = url.endsWith('.jpg') ? 'image/jpeg' : 'image/png';
+        const dataUrl = `data:${mimeType};base64,${base64}`;
+        imageCache.set(url, dataUrl);
+        return dataUrl;
+    } catch (e) {
+        console.error('Failed to fetch image', url, e);
+        return url; // fallback to original URL
+    }
+}
 
 async function getDDragonVersion() {
     try {
@@ -65,6 +83,12 @@ async function getPlayerData(nickname: string) {
     const losses = matches - wins;
     const winRate = ((wins / matches) * 100).toFixed(1) + '%';
     
+    // Generate pseudo-random KDA
+    const avgKills = (hash % 10) + Number(((hash % 100) / 100).toFixed(1)) + 2;
+    const avgDeaths = (Math.floor(hash / 10) % 8) + Number(((hash % 50) / 50).toFixed(1)) + 1;
+    const avgAssists = (Math.floor(hash / 100) % 15) + Number(((Math.floor(hash / 2) % 100) / 100).toFixed(1)) + 4;
+    const kdaRatio = ((avgKills + avgAssists) / avgDeaths).toFixed(2);
+    
     const lp = rankName === 'master' || rankName === 'grandmaster' || rankName === 'challenger'
         ? (hash % 1500)
         : (hash % 100);
@@ -73,6 +97,9 @@ async function getPlayerData(nickname: string) {
     const rankFullName = rankName.charAt(0).toUpperCase() + rankName.slice(1) + (
         ['master', 'grandmaster', 'challenger'].includes(rankName) ? '' : ` ${division}`
     );
+    
+    const rawProfileUrl = `https://ddragon.leagueoflegends.com/cdn/${version}/img/profileicon/${iconId}.png`;
+    const rawRankUrl = `https://opgg-static.akamaized.net/images/medals_new/${rankName}.png`;
     
     return {
         name: nickname,
@@ -83,9 +110,13 @@ async function getPlayerData(nickname: string) {
         wins,
         losses,
         winRate,
+        avgKills: avgKills.toFixed(1),
+        avgDeaths: avgDeaths.toFixed(1),
+        avgAssists: avgAssists.toFixed(1),
+        kdaRatio,
         color,
-        profileIconUrl: `https://ddragon.leagueoflegends.com/cdn/${version}/img/profileicon/${iconId}.png`,
-        rankIconUrl: `https://opgg-static.akamaized.net/images/medals_new/${rankName}.png`,
+        profileIconUrl: await fetchImageAsBase64(rawProfileUrl),
+        rankIconUrl: await fetchImageAsBase64(rawRankUrl),
     };
 }
 
@@ -207,16 +238,24 @@ async function startServer() {
                                     {
                                         type: 'div',
                                         props: {
-                                            style: { display: 'flex', alignItems: 'center', marginBottom: '24px' },
+                                            style: { display: 'flex', alignItems: 'center', marginBottom: '24px', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: '24px', padding: '12px 24px', border: '1px solid rgba(255,255,255,0.05)', width: '100%', justifyContent: 'center' },
                                             children: [
-                                                { type: 'img', props: { src: data.rankIconUrl, style: { width: '90px', height: '90px', marginRight: '16px' } } },
+                                                { type: 'img', props: { src: data.rankIconUrl, style: { width: '80px', height: '80px', marginRight: '20px' } } },
                                                 { 
                                                     type: 'div', 
                                                     props: { 
                                                         style: { display: 'flex', flexDirection: 'column' },
                                                         children: [
-                                                            { type: 'span', props: { style: { fontSize: '28px', fontWeight: 800, color: data.color, marginBottom: '2px' }, children: data.rankName } },
-                                                            { type: 'span', props: { style: { fontSize: '18px', color: '#94a3b8', fontWeight: 500 }, children: `${data.lp} LP` } }
+                                                            { type: 'span', props: { style: { fontSize: '28px', fontWeight: 800, color: data.color, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '4px' }, children: data.rankName } },
+                                                            { 
+                                                                type: 'div', 
+                                                                props: { 
+                                                                    style: { display: 'flex', alignItems: 'center' },
+                                                                    children: [
+                                                                        { type: 'span', props: { style: { fontSize: '16px', color: '#f8fafc', fontWeight: 700, background: 'rgba(255,255,255,0.1)', padding: '4px 12px', borderRadius: '12px' }, children: `${data.lp} LP` } }
+                                                                    ]
+                                                                } 
+                                                            }
                                                         ] 
                                                     } 
                                                 }
@@ -264,6 +303,38 @@ async function startServer() {
                                                 }
                                             ]
                                         }
+                                    },
+                                    {
+                                        type: 'div',
+                                        props: {
+                                            style: {
+                                                display: 'flex', width: '100%', justifyContent: 'space-between', alignItems: 'center',
+                                                backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '16px', padding: '16px',
+                                                border: '1px solid rgba(255,255,255,0.1)', marginTop: '16px'
+                                            },
+                                            children: [
+                                                {
+                                                    type: 'div',
+                                                    props: {
+                                                        style: { display: 'flex', flexDirection: 'column' },
+                                                        children: [
+                                                            { type: 'span', props: { style: { color: '#94a3b8', fontSize: '14px', marginBottom: '4px' }, children: 'KDA' }},
+                                                            { type: 'span', props: { style: { fontSize: '18px', fontWeight: 600, color: '#fff' }, children: `${data.avgKills} / ${data.avgDeaths} / ${data.avgAssists}` }}
+                                                        ]
+                                                    }
+                                                },
+                                                {
+                                                    type: 'div',
+                                                    props: {
+                                                        style: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end' },
+                                                        children: [
+                                                            { type: 'span', props: { style: { color: '#94a3b8', fontSize: '14px', marginBottom: '4px' }, children: 'KDA Ratio' }},
+                                                            { type: 'span', props: { style: { fontSize: '24px', fontWeight: 800, color: data.color }, children: data.kdaRatio }}
+                                                        ]
+                                                    }
+                                                }
+                                            ]
+                                        }
                                     }
                                 ]
                             }
@@ -292,7 +363,7 @@ async function startServer() {
         res.set('Content-Type', 'image/png').send(pngBuffer);
     } catch (error) {
         console.error(error);
-        res.status(500).send('Error generating card');
+        res.status(500).json({ error: 'Failed to generate card' });
     }
   });
 
