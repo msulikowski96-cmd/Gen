@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="bg">#FF111317</color>
+    <color name="surface">#FF1B1E25</color>
+    <color name="key">#FF262A33</color>
+    <color name="key_pressed">#FF3B4252</color>
+    <color name="accent">#FF5C7CFA</color>
+    <color name="text">#FFE6E8EE</color>
+    <color name="text_dim">#FF8A91A3</color>
+    <color name="ok">#FF40C057</color>
+    <color name="warn">#FFFAB005</color>
+    <color name="err">#FFFA5252</color>
+</resources>

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Korpus myszy -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M54,30 C64.5,30 72,37.5 72,48 L72,62 C72,72.5 64.5,80 54,80 C43.5,80 36,72.5 36,62 L36,48 C36,37.5 43.5,30 54,30 Z" />
+    <!-- Podział przycisków -->
+    <path
+        android:fillColor="#FF5C7CFA"
+        android:pathData="M53,30 L55,30 L55,50 L53,50 Z" />
+    <path
+        android:fillColor="#FF5C7CFA"
+        android:pathData="M36,49 L72,49 L72,51 L36,51 Z" />
+    <!-- Kółko -->
+    <path
+        android:fillColor="#FF5C7CFA"
+        android:pathData="M51.5,37 a2.5,2.5 0 0 1 5,0 L56.5,43 a2.5,2.5 0 0 1 -5,0 Z" />
+</vector>
