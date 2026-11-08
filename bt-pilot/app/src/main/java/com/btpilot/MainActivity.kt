@@ -70,6 +70,7 @@ class MainActivity : Activity(), HidController.Listener {
         setupKeysRow()
         setupInput()
         applySettings()
+        HidController.touchEnabled = prefs.getBoolean(PREF_TOUCH, true)
 
         findViewById<Button>(R.id.btnConnect).setOnClickListener { showConnectDialog() }
         findViewById<Button>(R.id.btnSettings).setOnClickListener { showSettingsDialog() }
@@ -225,6 +226,9 @@ class MainActivity : Activity(), HidController.Listener {
             labels += "✖  Rozłącz"
             actions += { HidController.disconnect() }
         }
+
+        labels += "🩺  Diagnostyka połączenia"
+        actions += { showDiagnostics() }
 
         labels += "⚙  Ustawienia Bluetooth"
         actions += { startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS)) }
@@ -524,6 +528,21 @@ class MainActivity : Activity(), HidController.Listener {
             isChecked = touchpad.invertScroll
         }
         box.addView(invert)
+        val touch = CheckBox(this).apply {
+            text = "Tryb gry 🎮 (ekran dotykowy)"
+            isChecked = HidController.touchEnabled
+        }
+        box.addView(touch)
+        box.addView(TextView(this).apply {
+            text = "Zmiana trybu gry wymaga usunięcia parowania na obu telefonach i sparowania od nowa. " +
+                "Jeśli nie możesz się połączyć, wyłącz tryb gry i sparuj ponownie."
+            textSize = 12f
+            setPadding(0, pad / 4, 0, 0)
+        })
+        box.addView(Button(this).apply {
+            text = "🩺 Diagnostyka połączenia"
+            setOnClickListener { showDiagnostics() }
+        })
         box.addView(TextView(this).apply {
             text = "Polskie znaki (ą, ę, ś…) działają, gdy na drugim urządzeniu " +
                 "ustawisz układ fizycznej klawiatury „Polski (programisty)”."
@@ -542,8 +561,51 @@ class MainActivity : Activity(), HidController.Listener {
                     .putBoolean(PREF_INVERT, invert.isChecked)
                     .apply()
                 applySettings()
+                if (touch.isChecked != HidController.touchEnabled) {
+                    prefs.edit().putBoolean(PREF_TOUCH, touch.isChecked).apply()
+                    HidController.touchEnabled = touch.isChecked
+                    HidController.restart(this)
+                    showRepairHint()
+                }
             }
             .setNegativeButton("Anuluj", null)
+            .show()
+    }
+
+    private fun showRepairHint() {
+        AlertDialog.Builder(this)
+            .setTitle("Sparuj telefony od nowa")
+            .setMessage(
+                "1. Na OBU telefonach: Ustawienia → Bluetooth → przy drugim telefonie ⚙ → „Rozłącz parowanie / Zapomnij”.\n" +
+                    "2. Tutaj: Połącz → „Uczyń ten telefon widocznym”.\n" +
+                    "3. Na drugim telefonie: Ustawienia → Bluetooth → wybierz ten telefon i potwierdź parowanie.",
+            )
+            .setPositiveButton("OK", null)
+            .show()
+    }
+
+    private fun showDiagnostics() {
+        val log = HidController.logText().ifEmpty { "(brak wpisów)" }
+        val info = "Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT}), ${Build.MANUFACTURER} ${Build.MODEL}\n" +
+            "Stan: ${HidController.state}, tryb gry: ${if (HidController.touchEnabled) "wł." else "wył."}\n" +
+            (HidController.lastError?.let { "Błąd: $it\n" } ?: "") + "\n"
+        val text = info + log
+        val view = TextView(this).apply {
+            this.text = text
+            textSize = 11f
+            setTextIsSelectable(true)
+            val p = (16 * resources.displayMetrics.density).toInt()
+            setPadding(p, p / 2, p, 0)
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Diagnostyka")
+            .setView(android.widget.ScrollView(this).apply { addView(view) })
+            .setPositiveButton("Kopiuj") { _, _ ->
+                getSystemService(android.content.ClipboardManager::class.java)
+                    .setPrimaryClip(android.content.ClipData.newPlainText("BT Pilot", text))
+                Toast.makeText(this, "Skopiowano – wklej w czacie", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("Zamknij", null)
             .show()
     }
 
@@ -556,5 +618,6 @@ class MainActivity : Activity(), HidController.Listener {
         const val PREF_SCROLL = "scroll"
         const val PREF_INVERT = "invert"
         const val PREF_PANEL = "panel_visible"
+        const val PREF_TOUCH = "touch_enabled"
     }
 }

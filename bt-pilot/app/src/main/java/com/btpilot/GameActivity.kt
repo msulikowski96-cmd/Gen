@@ -84,6 +84,13 @@ class GameActivity : Activity(), HidController.Listener {
 
         updateRotationLabel()
         loadBackground()
+        if (!HidController.touchEnabled) {
+            Toast.makeText(
+                this,
+                "Tryb gry jest wyłączony w ustawieniach (⚙) – dotyk nie będzie wysyłany",
+                Toast.LENGTH_LONG,
+            ).show()
+        }
     }
 
     override fun onStart() {

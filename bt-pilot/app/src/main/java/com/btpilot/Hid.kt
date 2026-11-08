@@ -41,7 +41,11 @@ object Hid {
     const val CC_BRIGHTNESS_UP = 0x006F
     const val CC_BRIGHTNESS_DOWN = 0x0070
 
-    val DESCRIPTOR: ByteArray = intArrayOf(
+    /** Pełny deskryptor; [withTouch] dodaje ekran dotykowy do trybu gry. */
+    fun descriptor(withTouch: Boolean): ByteArray =
+        (if (withTouch) BASE + touchscreen() else BASE).map { it.toByte() }.toByteArray()
+
+    private val BASE: IntArray = intArrayOf(
         // ---------- Klawiatura ----------
         0x05, 0x01,       // Usage Page (Generic Desktop)
         0x09, 0x06,       // Usage (Keyboard)
@@ -127,7 +131,7 @@ object Hid {
         0x95, 0x01,       //   Report Count (1)
         0x81, 0x00,       //   Input (Data, Array)
         0xC0              // End Collection
-    ).plus(touchscreen()).map { it.toByte() }.toByteArray()
+    )
 
     /**
      * Ekran dotykowy z wieloma palcami (tryb gry). Blok "Windows 8" (raport 6) sprawia,
