@@ -73,6 +73,9 @@ class MainActivity : Activity(), HidController.Listener {
 
         findViewById<Button>(R.id.btnConnect).setOnClickListener { showConnectDialog() }
         findViewById<Button>(R.id.btnSettings).setOnClickListener { showSettingsDialog() }
+        findViewById<Button>(R.id.btnGame).setOnClickListener {
+            startActivity(Intent(this, GameActivity::class.java))
+        }
 
         ensurePermissions()
     }

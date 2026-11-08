@@ -192,6 +192,31 @@ object HidController {
         send(Hid.ID_CONSUMER, ByteArray(Hid.CONSUMER_REPORT_SIZE), KEY_DELAY_MS)
     }
 
+    // ------------------------------------------------------------------ ekran dotykowy (tryb gry)
+
+    /** Jeden palec. [x], [y] w zakresie 0..[Hid.TOUCH_MAX_COORD], w naturalnej (pionowej) orientacji ekranu. */
+    data class Touch(val id: Int, val down: Boolean, val x: Int, val y: Int)
+
+    /** Wysyła pełny stan dotyku: wszystkie palce, łącznie z tymi właśnie podniesionymi (down = false). */
+    fun touch(contacts: List<Touch>) {
+        val b = ByteArray(Hid.TOUCH_REPORT_SIZE)
+        val n = minOf(contacts.size, Hid.TOUCH_CONTACTS)
+        for (i in 0 until n) {
+            val c = contacts[i]
+            val o = i * Hid.TOUCH_CONTACT_SIZE
+            val x = c.x.coerceIn(0, Hid.TOUCH_MAX_COORD)
+            val y = c.y.coerceIn(0, Hid.TOUCH_MAX_COORD)
+            b[o] = if (c.down) 0x03 else 0x00 // dotyk + w zasięgu
+            b[o + 1] = c.id.toByte()
+            b[o + 2] = (x and 0xFF).toByte()
+            b[o + 3] = (x shr 8).toByte()
+            b[o + 4] = (y and 0xFF).toByte()
+            b[o + 5] = (y shr 8).toByte()
+        }
+        b[Hid.TOUCH_REPORT_SIZE - 1] = n.toByte()
+        send(Hid.ID_TOUCH, b, 0)
+    }
+
     // ------------------------------------------------------------------ wnętrzności
 
     private fun send(id: Int, data: ByteArray, delayAfterMs: Long) {
@@ -280,17 +305,21 @@ object HidController {
         }
 
         override fun onGetReport(dev: BluetoothDevice, type: Byte, id: Byte, bufferSize: Int) {
-            val size = when (id.toInt()) {
-                Hid.ID_KEYBOARD -> Hid.KEYBOARD_REPORT_SIZE
-                Hid.ID_MOUSE -> Hid.MOUSE_REPORT_SIZE
-                Hid.ID_CONSUMER -> Hid.CONSUMER_REPORT_SIZE
-                else -> -1
+            val feature = type == BluetoothHidDevice.REPORT_TYPE_FEATURE
+            val data: ByteArray? = when (id.toInt()) {
+                Hid.ID_KEYBOARD -> ByteArray(Hid.KEYBOARD_REPORT_SIZE)
+                Hid.ID_MOUSE -> ByteArray(Hid.MOUSE_REPORT_SIZE)
+                Hid.ID_CONSUMER -> ByteArray(Hid.CONSUMER_REPORT_SIZE)
+                Hid.ID_TOUCH -> ByteArray(Hid.TOUCH_REPORT_SIZE)
+                Hid.ID_TOUCH_MAX -> if (feature) byteArrayOf(Hid.TOUCH_CONTACTS.toByte()) else null
+                Hid.ID_WIN8_BLOB -> if (feature) ByteArray(Hid.WIN8_BLOB_SIZE) else null
+                else -> null
             }
             val h = hid ?: return
-            if (size < 0) {
+            if (data == null) {
                 h.reportError(dev, BluetoothHidDevice.ERROR_RSP_INVALID_RPT_ID)
             } else {
-                h.replyReport(dev, type, id, ByteArray(size))
+                h.replyReport(dev, type, id, data)
             }
         }
 

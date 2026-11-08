@@ -15,6 +15,16 @@ object Hid {
     const val MOUSE_REPORT_SIZE = 5
     const val CONSUMER_REPORT_SIZE = 2
 
+    // Ekran dotykowy (tryb gry): do 5 palców naraz.
+    const val ID_TOUCH = 4
+    const val ID_TOUCH_MAX = 5
+    const val ID_WIN8_BLOB = 6
+    const val TOUCH_CONTACTS = 5
+    const val TOUCH_CONTACT_SIZE = 6 // flagi, id, X (2 bajty), Y (2 bajty)
+    const val TOUCH_REPORT_SIZE = TOUCH_CONTACTS * TOUCH_CONTACT_SIZE + 1
+    const val TOUCH_MAX_COORD = 32767
+    const val WIN8_BLOB_SIZE = 256
+
     const val BUTTON_LEFT = 0x01
     const val BUTTON_RIGHT = 0x02
     const val BUTTON_MIDDLE = 0x04
@@ -117,5 +127,69 @@ object Hid {
         0x95, 0x01,       //   Report Count (1)
         0x81, 0x00,       //   Input (Data, Array)
         0xC0              // End Collection
-    ).map { it.toByte() }.toByteArray()
+    ).plus(touchscreen()).map { it.toByte() }.toByteArray()
+
+    /**
+     * Ekran dotykowy z wieloma palcami (tryb gry). Blok "Windows 8" (raport 6) sprawia,
+     * że sterownik hid-multitouch w Androidzie obsługuje też pozostałe części urządzenia
+     * (mysz, klawiaturę) zamiast je pomijać.
+     */
+    private fun touchscreen(): IntArray {
+        val d = mutableListOf(
+            0x05, 0x0D,       // Usage Page (Digitizer)
+            0x09, 0x04,       // Usage (Touch Screen)
+            0xA1, 0x01,       // Collection (Application)
+            0x85, ID_TOUCH,   //   Report ID
+        )
+        repeat(TOUCH_CONTACTS) {
+            d += listOf(
+                0x09, 0x22,       //   Usage (Finger)
+                0xA1, 0x02,       //   Collection (Logical)
+                0x09, 0x42,       //     Usage (Tip Switch)
+                0x09, 0x32,       //     Usage (In Range)
+                0x15, 0x00,       //     Logical Minimum (0)
+                0x25, 0x01,       //     Logical Maximum (1)
+                0x75, 0x01,       //     Report Size (1)
+                0x95, 0x02,       //     Report Count (2)
+                0x81, 0x02,       //     Input (Data, Var, Abs)
+                0x95, 0x06,       //     Report Count (6)
+                0x81, 0x03,       //     Input (Const) — dopełnienie
+                0x09, 0x51,       //     Usage (Contact Identifier)
+                0x25, 0x0F,       //     Logical Maximum (15)
+                0x75, 0x08,       //     Report Size (8)
+                0x95, 0x01,       //     Report Count (1)
+                0x81, 0x02,       //     Input (Data, Var, Abs)
+                0x05, 0x01,       //     Usage Page (Generic Desktop)
+                0x26, 0xFF, 0x7F, //     Logical Maximum (32767)
+                0x75, 0x10,       //     Report Size (16)
+                0x95, 0x01,       //     Report Count (1)
+                0x09, 0x30,       //     Usage (X)
+                0x81, 0x02,       //     Input (Data, Var, Abs)
+                0x09, 0x31,       //     Usage (Y)
+                0x81, 0x02,       //     Input (Data, Var, Abs)
+                0x05, 0x0D,       //     Usage Page (Digitizer)
+                0xC0,             //   End Collection
+            )
+        }
+        d += listOf(
+            0x09, 0x54,           //   Usage (Contact Count)
+            0x25, 0x0F,           //   Logical Maximum (15)
+            0x75, 0x08,           //   Report Size (8)
+            0x95, 0x01,           //   Report Count (1)
+            0x81, 0x02,           //   Input (Data, Var, Abs)
+            0x85, ID_TOUCH_MAX,   //   Report ID
+            0x09, 0x55,           //   Usage (Contact Count Maximum)
+            0xB1, 0x02,           //   Feature (Data, Var, Abs)
+            0x06, 0x00, 0xFF,     //   Usage Page (Vendor 0xFF00)
+            0x85, ID_WIN8_BLOB,   //   Report ID
+            0x09, 0xC5,           //   Usage (0xC5) — blok certyfikatu Windows 8
+            0x15, 0x00,           //   Logical Minimum (0)
+            0x26, 0xFF, 0x00,     //   Logical Maximum (255)
+            0x75, 0x08,           //   Report Size (8)
+            0x96, 0x00, 0x01,     //   Report Count (256)
+            0xB1, 0x02,           //   Feature (Data, Var, Abs)
+            0xC0,                 // End Collection
+        )
+        return d.toIntArray()
+    }
 }

@@ -46,6 +46,29 @@ Później wystarczy kliknąć **Połącz** i wybrać urządzenie z listy sparowa
 - **⌨** – chowa/pokazuje panel z przyciskami myszy i klawiszami (gładzik robi się wtedy większy).
 - **⚙** – czułość kursora, szybkość i kierunek przewijania.
 
+## 🎮 Tryb gry – kontroler pod Wild Rift
+
+Przycisk **🎮** otwiera kontroler pod *League of Legends: Wild Rift*. Telefon sterujący działa wtedy
+jak **ekran dotykowy drugiego telefonu – do 5 palców naraz** (ruch + umiejętność + atak jednocześnie).
+
+- Na ekranie są kółka z konfiguracji Wild Rift: **Ruch** (joystick), **Atak**, **Q W E R**,
+  czary przywoływacza **D F**, **Przedmiot**, **Ward**, **Powrót**, **Sklep**.
+- Dotknięcie kółka = palec na drugim telefonie ląduje dokładnie w środku tego przycisku w grze,
+  a potem podąża za Twoim ruchem → tak działa joystick i celowanie umiejętnościami.
+- Dotyk poza kółkami trafia w to samo miejsce ekranu gry (sklep, ulepszanie umiejętności, minimapa).
+
+**Konfiguracja (raz):**
+1. **Usuń parowanie na obu telefonach i sparuj je ponownie** – drugi telefon musi „zobaczyć” nowy ekran dotykowy.
+2. Na telefonie z grą zrób zrzut ekranu w trakcie meczu (np. w treningu) i przenieś go na telefon sterujący.
+3. W trybie gry: **🖼 Tło** → wybierz zrzut, potem **✎ Edytuj** → przeciągnij kółka na przyciski
+   ze zrzutu (− / + zmienia rozmiar), **✓ Gotowe**.
+4. Jeśli dotyk trafia w złe miejsce, przełącz **↻** (90° / 270° / 0°) – zależy, w którą stronę
+   obrócony jest telefon z grą.
+5. Pomocne: na telefonie z grą *Opcje programisty → „Pokaż dotknięcia”*.
+
+Domyślne położenia przycisków są przybliżone – każdy telefon i ustawienia HUD-u w grze są trochę inne,
+dlatego krok 3 jest ważny.
+
 ### Polskie znaki
 
 Aplikacja wysyła ą, ć, ę, ł, ń, ó, ś, ź, ż jako **AltGr + litera**. Żeby działały, na sterowanym
