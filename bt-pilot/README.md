@@ -43,6 +43,7 @@ Później wystarczy kliknąć **Połącz** i wybrać urządzenie z listy sparowa
 - **Ctrl / Alt / Shift / Win** działają „na jeden klawisz”: stuknij Ctrl, potem wpisz `c` → Ctrl+C.
 - **Pole „Pisz tutaj”** – wszystko, co wpiszesz klawiaturą telefonu, pojawia się na drugim urządzeniu
   (Enter wysyła Enter, kasowanie kasuje).
+- **⌨** – chowa/pokazuje panel z przyciskami myszy i klawiszami (gładzik robi się wtedy większy).
 - **⚙** – czułość kursora, szybkość i kierunek przewijania.
 
 ### Polskie znaki
