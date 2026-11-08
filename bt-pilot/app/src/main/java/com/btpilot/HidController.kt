@@ -53,6 +53,26 @@ object HidController {
 
     private var mouseButtons = 0
 
+    /** Czy urządzenie ma też ekran dotykowy (tryb gry). Zmiana wymaga ponownego sparowania. */
+    @Volatile var touchEnabled = true
+
+    // ------------------------------------------------------------------ dziennik (diagnostyka)
+
+    private val logLines = ArrayDeque<String>()
+    private val timeFormat = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.ROOT)
+
+    fun log(msg: String) {
+        synchronized(logLines) {
+            logLines.addLast(timeFormat.format(java.util.Date()) + "  " + msg)
+            while (logLines.size > 80) logLines.removeFirst()
+        }
+    }
+
+    fun logText(): String = synchronized(logLines) { logLines.joinToString("\n") }
+
+    private fun name(d: BluetoothDevice?): String =
+        if (d == null) "-" else try { (d.name ?: "?") + " (" + d.address + ")" } catch (_: Exception) { "?" }
+
     // ------------------------------------------------------------------ cykl życia
 
     fun addListener(l: Listener) {
@@ -74,14 +94,24 @@ object HidController {
         }
         if (proxyRequested) return
         proxyRequested = true
+        log("Start: Bluetooth " + (if (a.isEnabled) "włączony" else "WYŁĄCZONY") +
+            ", ekran dotykowy: " + (if (touchEnabled) "tak" else "nie"))
         if (!a.getProfileProxy(ctx, serviceListener, BluetoothProfile.HID_DEVICE)) {
+            log("BŁĄD: getProfileProxy(HID_DEVICE) = false")
             proxyRequested = false
             lastError = "System nie udostępnia profilu HID Device."
             setState(State.NOT_SUPPORTED, null)
         }
     }
 
+    /** Ponowna rejestracja, np. po zmianie [touchEnabled]. */
+    fun restart(context: Context) {
+        stop()
+        main.postDelayed({ start(context) }, 500)
+    }
+
     fun stop() {
+        log("Stop")
         val h = hid
         try {
             device?.let { h?.disconnect(it) }
@@ -98,6 +128,7 @@ object HidController {
 
     fun connect(target: BluetoothDevice) {
         val h = hid
+        log("Połącz z " + name(target) + " (zarejestrowany: " + registered + ")")
         if (h == null || !registered) {
             pendingConnect = target
             return
@@ -109,6 +140,7 @@ object HidController {
         }
         setState(State.CONNECTING, target)
         if (!h.connect(target)) {
+            log("BŁĄD: connect() = false")
             lastError = "Nie udało się rozpocząć połączenia."
             setState(State.READY, null)
         }
@@ -116,6 +148,7 @@ object HidController {
 
     fun disconnect() {
         val d = device ?: return
+        log("Rozłącz " + name(d))
         hid?.disconnect(d)
     }
 
@@ -199,6 +232,7 @@ object HidController {
 
     /** Wysyła pełny stan dotyku: wszystkie palce, łącznie z tymi właśnie podniesionymi (down = false). */
     fun touch(contacts: List<Touch>) {
+        if (!touchEnabled) return
         val b = ByteArray(Hid.TOUCH_REPORT_SIZE)
         val n = minOf(contacts.size, Hid.TOUCH_CONTACTS)
         for (i in 0 until n) {
@@ -243,12 +277,14 @@ object HidController {
             if (profile != BluetoothProfile.HID_DEVICE) return
             val h = proxy as BluetoothHidDevice
             hid = h
+            val desc = Hid.descriptor(touchEnabled)
+            log("Usługa HID gotowa, rejestracja (deskryptor " + desc.size + " B)")
             val sdp = BluetoothHidDeviceAppSdpSettings(
                 "BT Pilot",
                 "Mysz i klawiatura",
                 "BT Pilot",
                 BluetoothHidDevice.SUBCLASS1_COMBO,
-                Hid.DESCRIPTOR,
+                desc,
             )
             val ok = try {
                 h.registerApp(sdp, null, null, io, callback)
@@ -256,6 +292,7 @@ object HidController {
                 lastError = e.message
                 false
             }
+            log("registerApp = " + ok + (if (ok) "" else " " + (lastError ?: "")))
             if (!ok) {
                 if (lastError == null) {
                     lastError = "Rejestracja HID odrzucona. Zamknij inne aplikacje typu " +
@@ -267,6 +304,7 @@ object HidController {
 
         override fun onServiceDisconnected(profile: Int) {
             if (profile != BluetoothProfile.HID_DEVICE) return
+            log("Usługa HID rozłączona przez system")
             hid = null
             registered = false
             proxyRequested = false
@@ -277,6 +315,7 @@ object HidController {
     private val callback = object : BluetoothHidDevice.Callback() {
         override fun onAppStatusChanged(pluggedDevice: BluetoothDevice?, isRegistered: Boolean) {
             registered = isRegistered
+            log("Rejestracja: " + isRegistered + ", zapamiętany host: " + name(pluggedDevice))
             if (!isRegistered) {
                 setState(State.STARTING, null)
                 return
@@ -289,6 +328,14 @@ object HidController {
         }
 
         override fun onConnectionStateChanged(dev: BluetoothDevice, newState: Int) {
+            val stateName = when (newState) {
+                BluetoothProfile.STATE_CONNECTED -> "POŁĄCZONO"
+                BluetoothProfile.STATE_CONNECTING -> "łączenie"
+                BluetoothProfile.STATE_DISCONNECTING -> "rozłączanie"
+                BluetoothProfile.STATE_DISCONNECTED -> "ROZŁĄCZONO"
+                else -> newState.toString()
+            }
+            log("Stan połączenia: " + stateName + " – " + name(dev))
             when (newState) {
                 BluetoothProfile.STATE_CONNECTED -> {
                     mouseButtons = 0
@@ -305,6 +352,7 @@ object HidController {
         }
 
         override fun onGetReport(dev: BluetoothDevice, type: Byte, id: Byte, bufferSize: Int) {
+            log("Host pyta o raport: typ " + type + ", id " + id + ", bufor " + bufferSize)
             val feature = type == BluetoothHidDevice.REPORT_TYPE_FEATURE
             val data: ByteArray? = when (id.toInt()) {
                 Hid.ID_KEYBOARD -> ByteArray(Hid.KEYBOARD_REPORT_SIZE)
@@ -324,7 +372,16 @@ object HidController {
         }
 
         override fun onSetReport(dev: BluetoothDevice, type: Byte, id: Byte, data: ByteArray) {
+            log("Host ustawia raport: typ " + type + ", id " + id + ", " + data.size + " B")
             hid?.reportError(dev, BluetoothHidDevice.ERROR_RSP_SUCCESS)
+        }
+
+        override fun onSetProtocol(dev: BluetoothDevice, protocol: Byte) {
+            log("Host ustawia protokół: " + protocol)
+        }
+
+        override fun onVirtualCableUnplug(dev: BluetoothDevice) {
+            log("Host usunął parowanie (virtual cable unplug): " + name(dev))
         }
     }
 
