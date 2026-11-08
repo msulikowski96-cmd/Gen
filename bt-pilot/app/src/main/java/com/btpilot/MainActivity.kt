@@ -22,7 +22,6 @@ import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
-import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
@@ -38,6 +37,7 @@ class MainActivity : Activity(), HidController.Listener {
     private lateinit var statusDot: View
     private lateinit var touchpad: TouchpadView
     private lateinit var input: EditText
+    private lateinit var keysPanel: View
     private lateinit var prefs: SharedPreferences
 
     /** Ctrl/Alt/Shift/Win włączone "na jeden klawisz". */
@@ -62,6 +62,7 @@ class MainActivity : Activity(), HidController.Listener {
         statusDot = findViewById(R.id.statusDot)
         touchpad = findViewById(R.id.touchpad)
         input = findViewById(R.id.input)
+        keysPanel = findViewById(R.id.keysPanel)
 
         setupTouchpad()
         setupMouseButtons()
@@ -72,6 +73,9 @@ class MainActivity : Activity(), HidController.Listener {
 
         findViewById<Button>(R.id.btnConnect).setOnClickListener { showConnectDialog() }
         findViewById<Button>(R.id.btnSettings).setOnClickListener { showSettingsDialog() }
+        findViewById<Button>(R.id.btnGame).setOnClickListener {
+            startActivity(Intent(this, GameActivity::class.java))
+        }
 
         ensurePermissions()
     }
@@ -448,7 +452,19 @@ class MainActivity : Activity(), HidController.Listener {
             }
         }
 
-        findViewById<Button>(R.id.btnKeyboard).setOnClickListener { toggleKeyboard() }
+        val btnKeyboard = findViewById<Button>(R.id.btnKeyboard)
+        btnKeyboard.setOnClickListener {
+            it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+            setPanelVisible(keysPanel.visibility != View.VISIBLE)
+        }
+        setPanelVisible(prefs.getBoolean(PREF_PANEL, true))
+    }
+
+    /** Chowa/pokazuje panel z przyciskami myszy i klawiszami; gładzik zajmuje wolne miejsce. */
+    private fun setPanelVisible(visible: Boolean) {
+        keysPanel.visibility = if (visible) View.VISIBLE else View.GONE
+        findViewById<Button>(R.id.btnKeyboard).isActivated = visible
+        prefs.edit().putBoolean(PREF_PANEL, visible).apply()
     }
 
     private fun clearInput() {
@@ -456,17 +472,6 @@ class MainActivity : Activity(), HidController.Listener {
         input.setText("")
         lastText = ""
         ignoreTextChange = false
-    }
-
-    private fun toggleKeyboard() {
-        val imm = getSystemService(InputMethodManager::class.java)
-        if (input.hasFocus()) {
-            imm.hideSoftInputFromWindow(input.windowToken, 0)
-            input.clearFocus()
-        } else {
-            input.requestFocus()
-            imm.showSoftInput(input, InputMethodManager.SHOW_IMPLICIT)
-        }
     }
 
     // ------------------------------------------------------------------ ustawienia
@@ -550,5 +555,6 @@ class MainActivity : Activity(), HidController.Listener {
         const val PREF_SENSITIVITY = "sensitivity"
         const val PREF_SCROLL = "scroll"
         const val PREF_INVERT = "invert"
+        const val PREF_PANEL = "panel_visible"
     }
 }

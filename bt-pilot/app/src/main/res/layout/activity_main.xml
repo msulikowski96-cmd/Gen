@@ -2,6 +2,7 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:animateLayoutChanges="true"
     android:background="@color/bg"
     android:fitsSystemWindows="true"
     android:orientation="vertical"
@@ -32,6 +33,14 @@
             android:textSize="14sp" />
 
         <Button
+            android:id="@+id/btnGame"
+            style="@style/KeyButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="6dp"
+            android:text="🎮" />
+
+        <Button
             android:id="@+id/btnConnect"
             style="@style/KeyButton"
             android:layout_width="wrap_content"
@@ -56,6 +65,13 @@
         android:layout_marginTop="10dp"
         android:layout_marginBottom="8dp"
         android:layout_weight="1" />
+
+    <!-- Panel przycisków: chowany przyciskiem ⌨ -->
+    <LinearLayout
+        android:id="@+id/keysPanel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
 
     <!-- Przyciski myszy -->
     <LinearLayout
@@ -117,6 +133,8 @@
             android:layout_height="wrap_content"
             android:orientation="horizontal" />
     </HorizontalScrollView>
+
+    </LinearLayout>
 
     <!-- Pole do pisania -->
     <LinearLayout
