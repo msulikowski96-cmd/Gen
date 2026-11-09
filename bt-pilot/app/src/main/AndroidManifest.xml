@@ -42,6 +42,13 @@
             android:exported="false"
             android:screenOrientation="sensorLandscape"
             android:theme="@style/GameTheme" />
+
+        <activity
+            android:name=".PadActivity"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|keyboard|uiMode"
+            android:exported="false"
+            android:screenOrientation="sensorLandscape"
+            android:theme="@style/GameTheme" />
     </application>
 
 </manifest>

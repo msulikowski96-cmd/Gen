@@ -56,6 +56,9 @@ object HidController {
     /** Czy urządzenie ma też ekran dotykowy (tryb gry). Zmiana wymaga ponownego sparowania. */
     @Volatile var touchEnabled = true
 
+    /** Czy urządzenie ma też pad w układzie Xbox. Zmiana wymaga ponownego sparowania. */
+    @Volatile var gamepadEnabled = true
+
     // ------------------------------------------------------------------ dziennik (diagnostyka)
 
     private val logLines = ArrayDeque<String>()
@@ -95,7 +98,8 @@ object HidController {
         if (proxyRequested) return
         proxyRequested = true
         log("Start: Bluetooth " + (if (a.isEnabled) "włączony" else "WYŁĄCZONY") +
-            ", ekran dotykowy: " + (if (touchEnabled) "tak" else "nie"))
+            ", ekran dotykowy: " + (if (touchEnabled) "tak" else "nie") +
+            ", pad: " + (if (gamepadEnabled) "tak" else "nie"))
         if (!a.getProfileProxy(ctx, serviceListener, BluetoothProfile.HID_DEVICE)) {
             log("BŁĄD: getProfileProxy(HID_DEVICE) = false")
             proxyRequested = false
@@ -251,6 +255,30 @@ object HidController {
         send(Hid.ID_TOUCH, b, 0)
     }
 
+    // ------------------------------------------------------------------ pad (Xbox)
+
+    /**
+     * Wysyła stan pada. [buttons] to maska Hid.PAD_*, [hat] 0..7 (0 = góra, zgodnie z zegarem)
+     * albo [Hid.HAT_NONE]; gałki -127..127, spusty 0..255.
+     */
+    fun gamepad(buttons: Int, hat: Int, lx: Int, ly: Int, rx: Int, ry: Int, lt: Int, rt: Int) {
+        if (!gamepadEnabled) return
+        send(Hid.ID_GAMEPAD, padReport(buttons, hat, lx, ly, rx, ry, lt, rt), 0)
+    }
+
+    private fun padReport(buttons: Int, hat: Int, lx: Int, ly: Int, rx: Int, ry: Int, lt: Int, rt: Int) =
+        byteArrayOf(
+            (buttons and 0xFF).toByte(),
+            ((buttons shr 8) and 0xFF).toByte(),
+            (hat and 0x0F).toByte(),
+            lx.coerceIn(-127, 127).toByte(),
+            ly.coerceIn(-127, 127).toByte(),
+            rx.coerceIn(-127, 127).toByte(),
+            ry.coerceIn(-127, 127).toByte(),
+            lt.coerceIn(0, 255).toByte(),
+            rt.coerceIn(0, 255).toByte(),
+        )
+
     // ------------------------------------------------------------------ wnętrzności
 
     private fun send(id: Int, data: ByteArray, delayAfterMs: Long) {
@@ -277,7 +305,7 @@ object HidController {
             if (profile != BluetoothProfile.HID_DEVICE) return
             val h = proxy as BluetoothHidDevice
             hid = h
-            val desc = Hid.descriptor(touchEnabled)
+            val desc = Hid.descriptor(touchEnabled, gamepadEnabled)
             log("Usługa HID gotowa, rejestracja (deskryptor " + desc.size + " B)")
             val sdp = BluetoothHidDeviceAppSdpSettings(
                 "BT Pilot",
@@ -359,6 +387,7 @@ object HidController {
                 Hid.ID_MOUSE -> ByteArray(Hid.MOUSE_REPORT_SIZE)
                 Hid.ID_CONSUMER -> ByteArray(Hid.CONSUMER_REPORT_SIZE)
                 Hid.ID_TOUCH -> ByteArray(Hid.TOUCH_REPORT_SIZE)
+                Hid.ID_GAMEPAD -> padReport(0, Hid.HAT_NONE, 0, 0, 0, 0, 0, 0)
                 Hid.ID_TOUCH_MAX -> if (feature) byteArrayOf(Hid.TOUCH_CONTACTS.toByte()) else null
                 Hid.ID_WIN8_BLOB -> if (feature) ByteArray(Hid.WIN8_BLOB_SIZE) else null
                 else -> null

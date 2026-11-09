@@ -46,9 +46,24 @@ Później wystarczy kliknąć **Połącz** i wybrać urządzenie z listy sparowa
 - **⌨** – chowa/pokazuje panel z przyciskami myszy i klawiszami (gładzik robi się wtedy większy).
 - **⚙** – czułość kursora, szybkość i kierunek przewijania.
 
+## 🕹 Pad Xbox (uniwersalny)
+
+**🎮 → Pad Xbox** zamienia telefon w pad Bluetooth w układzie Xbox. Działa w grach na Androida
+z obsługą pada (i na PC jako standardowy pad HID).
+
+- **Lewa gałka**, **prawa gałka** – szybkie stuknięcie gałki bez ruchu = wciśnięcie (L3 / R3)
+- **D-pad** – można przesuwać palec między kierunkami (także po skosie)
+- **A B X Y**, **LB RB**
+- **LT RT** – analogowe: dotknięcie = pół siły, im niżej przesuniesz palec, tym mocniej
+- **⧉ Widok**, **≡ Menu**, **Ⓧ Xbox**
+- Wiele palców naraz (np. gałka + strzał + celowanie)
+
+Na PC wiele gier oczekuje „prawdziwego” pada Xbox (XInput) – wtedy pomaga Steam (Ustawienia →
+Kontroler → obsługa pada ogólnego) albo program typu x360ce.
+
 ## 🎮 Tryb gry – kontroler pod Wild Rift
 
-Przycisk **🎮** otwiera kontroler pod *League of Legends: Wild Rift*. Telefon sterujący działa wtedy
+**🎮 → Wild Rift** otwiera kontroler pod *League of Legends: Wild Rift*. Telefon sterujący działa wtedy
 jak **ekran dotykowy drugiego telefonu – do 5 palców naraz** (ruch + umiejętność + atak jednocześnie).
 
 - Na ekranie są kółka z konfiguracji Wild Rift: **Ruch** (joystick), **Atak**, **Q W E R**,
