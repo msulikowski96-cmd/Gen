@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Korpus pada -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M36,40 L72,40 C80,40 84,46 86,54 L89,68 C90,74 85,78 80,74 L72,66 L36,66 L28,74 C23,78 18,74 19,68 L22,54 C24,46 28,40 36,40 Z" />
+    <!-- Gałki -->
+    <path
+        android:fillColor="#FF107C10"
+        android:pathData="M38,52 m-5,0 a5,5 0 1,0 10,0 a5,5 0 1,0 -10,0" />
+    <path
+        android:fillColor="#FF107C10"
+        android:pathData="M64,58 m-4,0 a4,4 0 1,0 8,0 a4,4 0 1,0 -8,0" />
+    <!-- Przyciski -->
+    <path
+        android:fillColor="#FF107C10"
+        android:pathData="M74,49 m-2.5,0 a2.5,2.5 0 1,0 5,0 a2.5,2.5 0 1,0 -5,0" />
+    <path
+        android:fillColor="#FF107C10"
+        android:pathData="M74,57 m-2.5,0 a2.5,2.5 0 1,0 5,0 a2.5,2.5 0 1,0 -5,0" />
+</vector>
