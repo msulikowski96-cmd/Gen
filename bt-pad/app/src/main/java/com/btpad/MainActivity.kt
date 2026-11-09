@@ -92,8 +92,17 @@ class MainActivity : Activity(), BluetoothPad.Listener {
         super.onStop()
     }
 
+    override fun onResume() {
+        super.onResume()
+        // Gdyby Android wyłączył pad, gdy aplikacja była w tle – włącz ponownie.
+        if (hasPermission() && adapter?.isEnabled == true) BluetoothPad.ensureRegistered()
+    }
+
     override fun onDestroy() {
-        if (isFinishing) BluetoothPad.stop()
+        if (isFinishing) {
+            BluetoothPad.stop()
+            PadService.stop(this)
+        }
         super.onDestroy()
     }
 
@@ -110,7 +119,9 @@ class MainActivity : Activity(), BluetoothPad.Listener {
         } else {
             emptyArray()
         }
-        val missing = needed.filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
+        // Powiadomienie „BT Pad działa” – mile widziane, ale niewymagane.
+        val optional = if (Build.VERSION.SDK_INT >= 33) arrayOf(Manifest.permission.POST_NOTIFICATIONS) else emptyArray()
+        val missing = (needed + optional).filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
         if (missing.isEmpty()) ensureBluetoothOn() else requestPermissions(missing.toTypedArray(), REQ_PERMISSIONS)
     }
 
@@ -132,8 +143,13 @@ class MainActivity : Activity(), BluetoothPad.Listener {
                 @Suppress("DEPRECATION")
                 startActivityForResult(Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE), REQ_ENABLE_BT)
             }
-            else -> BluetoothPad.start(this)
+            else -> startPad()
         }
+    }
+
+    private fun startPad() {
+        BluetoothPad.start(this)
+        PadService.start(this)
     }
 
     @Deprecated("Deprecated in Java")
@@ -141,7 +157,7 @@ class MainActivity : Activity(), BluetoothPad.Listener {
         @Suppress("DEPRECATION")
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == REQ_ENABLE_BT) {
-            if (adapter?.isEnabled == true) BluetoothPad.start(this) else setStatus("● Bluetooth wyłączony – stuknij", COLOR_ERR)
+            if (adapter?.isEnabled == true) startPad() else setStatus("● Bluetooth wyłączony – stuknij", COLOR_ERR)
         }
     }
 
@@ -150,9 +166,9 @@ class MainActivity : Activity(), BluetoothPad.Listener {
     override fun onPadStateChanged(state: State, device: BluetoothDevice?) {
         val name = BluetoothPad.name(device)
         when (state) {
-            State.STARTING -> setStatus("● Uruchamianie…", COLOR_WARN)
+            State.STARTING -> setStatus("● Uruchamianie… (stuknij, jeśli trwa długo)", COLOR_WARN)
             State.NO_BLUETOOTH -> setStatus("● Ten telefon nie ma Bluetooth", COLOR_ERR)
-            State.NOT_SUPPORTED -> setStatus("● Pad niedostępny – stuknij", COLOR_ERR)
+            State.NOT_SUPPORTED -> setStatus("● Pad nie wystartował – stuknij", COLOR_ERR)
             State.READY -> {
                 setStatus("● Niepołączony – stuknij, aby połączyć", COLOR_WARN)
                 maybeOnboard()
@@ -178,10 +194,18 @@ class MainActivity : Activity(), BluetoothPad.Listener {
         when {
             !hasPermission() -> ensurePermissions()
             adapter?.isEnabled != true -> ensureBluetoothOn()
-            BluetoothPad.state == State.NOT_SUPPORTED -> AlertDialog.Builder(this)
-                .setTitle("Pad niedostępny")
-                .setMessage(BluetoothPad.lastError ?: "Ten telefon nie pozwala działać jako pad Bluetooth.")
-                .setPositiveButton("OK", null)
+            BluetoothPad.state == State.NOT_SUPPORTED || BluetoothPad.state == State.STARTING -> AlertDialog.Builder(this)
+                .setTitle("Pad nie wystartował")
+                .setMessage(
+                    (BluetoothPad.lastError ?: "Pad jeszcze się uruchamia.") +
+                        "\n\nJeśli to się powtarza: zamknij BT Pilot, wyłącz i włącz Bluetooth, potem „Spróbuj ponownie”.",
+                )
+                .setPositiveButton("Spróbuj ponownie") { _, _ ->
+                    BluetoothPad.restart(this)
+                    PadService.start(this)
+                }
+                .setNeutralButton("Diagnostyka") { _, _ -> Pairing.showDiagnostics(this) }
+                .setNegativeButton("Zamknij", null)
                 .show()
             BluetoothPad.isConnected && BluetoothPad.device != null &&
                 BluetoothPad.hostStatus(BluetoothPad.device!!) != HostStatus.CURRENT ->

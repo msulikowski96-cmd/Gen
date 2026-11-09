@@ -53,6 +53,12 @@ object BluetoothPad {
     @Volatile private var hid: BluetoothHidDevice? = null
     @Volatile private var registered = false
     private var proxyRequested = false
+    @Volatile private var registering = false
+    /** Czy pad ma działać (false po [stop]) – wtedy po utracie rejestracji rejestrujemy ponownie. */
+    @Volatile private var wanted = false
+    private var retries = 0
+    private var registerSeq = 0
+    private var appContext: Context? = null
     private var pendingConnect: BluetoothDevice? = null
     private var prefs: SharedPreferences? = null
     private var bondReceiverRegistered = false
@@ -145,6 +151,8 @@ object BluetoothPad {
 
     fun start(context: Context) {
         val ctx = context.applicationContext
+        appContext = ctx
+        wanted = true
         if (prefs == null) prefs = ctx.getSharedPreferences("bt_pad", Context.MODE_PRIVATE)
         if (!bondReceiverRegistered) {
             val filter = IntentFilter(BluetoothDevice.ACTION_BOND_STATE_CHANGED)
@@ -161,7 +169,10 @@ object BluetoothPad {
             setState(State.NO_BLUETOOTH, null)
             return
         }
-        if (proxyRequested) return
+        if (proxyRequested) {
+            ensureRegistered()
+            return
+        }
         proxyRequested = true
         log("Start (opis pada ${Hid.DESCRIPTOR.size} B, wersja ${java.lang.Long.toHexString(fingerprint)})")
         if (!a.getProfileProxy(ctx, serviceListener, BluetoothProfile.HID_DEVICE)) {
@@ -169,11 +180,73 @@ object BluetoothPad {
             lastError = "System nie udostępnia profilu HID Device."
             log("BŁĄD: " + lastError)
             setState(State.NOT_SUPPORTED, null)
+            return
+        }
+        main.postDelayed({
+            if (wanted && hid == null && proxyRequested) {
+                log("Usługa HID systemu nie odpowiada")
+                lastError = "Usługa Bluetooth HID nie odpowiada. Wyłącz i włącz Bluetooth i stuknij „Spróbuj ponownie”."
+                setState(State.NOT_SUPPORTED, null)
+            }
+        }, 8000)
+    }
+
+    /** Ponowne uruchomienie od zera (przycisk „Spróbuj ponownie”). */
+    fun restart(context: Context) {
+        stop()
+        main.postDelayed({ start(context) }, 600)
+    }
+
+    /**
+     * Android wyłącza pad, gdy aplikacja traci pierwszy plan (np. przy systemowym okienku).
+     * Wołane przy powrocie do aplikacji i po utracie rejestracji – rejestruje pad ponownie.
+     */
+    fun ensureRegistered() {
+        if (!wanted || registered || registering) return
+        val h = hid ?: return
+        register(h)
+    }
+
+    private fun register(h: BluetoothHidDevice) {
+        val sdp = BluetoothHidDeviceAppSdpSettings(
+            "BT Pad",
+            "Pad",
+            "BT Pad",
+            (BluetoothHidDevice.SUBCLASS1_NONE.toInt() or BluetoothHidDevice.SUBCLASS2_GAMEPAD.toInt()).toByte(),
+            Hid.DESCRIPTOR,
+        )
+        registering = true
+        val seq = ++registerSeq
+        val ok = try {
+            h.registerApp(sdp, null, null, io, callback)
+        } catch (e: Exception) {
+            log("Wyjątek przy rejestracji: ${e.message}")
+            false
+        }
+        log("Rejestracja pada: " + (if (ok) "wysłana" else "ODRZUCONA"))
+        if (!ok) {
+            registering = false
+            lastError = "Telefon odrzucił rejestrację pada. Zamknij inne aplikacje udające " +
+                "pad/klawiaturę/mysz Bluetooth (np. BT Pilot), wyłącz i włącz Bluetooth i stuknij „Spróbuj ponownie”."
+            setState(State.NOT_SUPPORTED, null)
+        } else {
+            // Gdyby system nie odpowiedział, nie wisimy w nieskończoność.
+            main.postDelayed({
+                if (registering && seq == registerSeq) {
+                    registering = false
+                    log("Brak odpowiedzi systemu na rejestrację")
+                    lastError = "System nie odpowiada na rejestrację pada. Wyłącz i włącz Bluetooth, " +
+                        "zamknij BT Pilot i stuknij „Spróbuj ponownie”."
+                    setState(State.NOT_SUPPORTED, null)
+                }
+            }, 8000)
         }
     }
 
     fun stop() {
         log("Stop")
+        wanted = false
+        registering = false
         val h = hid
         try {
             device?.let { h?.disconnect(it) }
@@ -254,25 +327,9 @@ object BluetoothPad {
             if (profile != BluetoothProfile.HID_DEVICE) return
             val h = proxy as BluetoothHidDevice
             hid = h
-            val sdp = BluetoothHidDeviceAppSdpSettings(
-                "BT Pad",
-                "Pad",
-                "BT Pad",
-                (BluetoothHidDevice.SUBCLASS1_NONE.toInt() or BluetoothHidDevice.SUBCLASS2_GAMEPAD.toInt()).toByte(),
-                Hid.DESCRIPTOR,
-            )
-            val ok = try {
-                h.registerApp(sdp, null, null, io, callback)
-            } catch (e: Exception) {
-                lastError = e.message
-                false
-            }
-            log("Rejestracja pada: " + (if (ok) "wysłana" else "ODRZUCONA"))
-            if (!ok) {
-                lastError = "Telefon odrzucił rejestrację pada. Zamknij inne aplikacje udające " +
-                    "pad/klawiaturę/mysz Bluetooth (np. BT Pilot), wyłącz i włącz Bluetooth i uruchom BT Pad ponownie."
-                setState(State.NOT_SUPPORTED, null)
-            }
+            log("Usługa HID gotowa")
+            retries = 0
+            if (wanted) register(h)
         }
 
         override fun onServiceDisconnected(profile: Int) {
@@ -288,11 +345,21 @@ object BluetoothPad {
     private val callback = object : BluetoothHidDevice.Callback() {
         override fun onAppStatusChanged(pluggedDevice: BluetoothDevice?, isRegistered: Boolean) {
             registered = isRegistered
+            registering = false
             log("Pad zarejestrowany: $isRegistered, zapamiętany telefon: ${name(pluggedDevice)}")
             if (!isRegistered) {
                 setState(State.STARTING, null)
+                // Np. aplikacja na chwilę straciła pierwszy plan – rejestrujemy ponownie.
+                if (wanted && retries < MAX_RETRIES) {
+                    retries++
+                    main.postDelayed({ ensureRegistered() }, 1000L * retries)
+                } else if (wanted) {
+                    lastError = "Android wciąż wyłącza pad. Wyłącz i włącz Bluetooth i stuknij „Spróbuj ponownie”."
+                    setState(State.NOT_SUPPORTED, null)
+                }
                 return
             }
+            retries = 0
             lastError = null
             if (state != State.CONNECTED && state != State.CONNECTING) setState(State.READY, null)
             // Automatycznie łączymy tylko z telefonem, który zna aktualny opis pada.
@@ -341,6 +408,7 @@ object BluetoothPad {
         }
     }
 
+    private const val MAX_RETRIES = 5
     private const val KEY_HOST = "host_"
     private const val KEY_LAST = "last_host"
 }
