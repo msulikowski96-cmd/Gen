@@ -48,6 +48,10 @@ class GameActivity : Activity(), HidController.Listener {
         }
 
         status = TextView(this).apply {
+            setOnClickListener {
+                val d = HidController.device
+                if (d != null) Pairing.chooseDevice(this@GameActivity, d) else Pairing.showConnectDialog(this@GameActivity)
+            }
             textSize = 12f
             setTextColor(getColor(R.color.text))
             setPadding(dp(10), 0, dp(10), 0)
@@ -87,7 +91,7 @@ class GameActivity : Activity(), HidController.Listener {
         if (!HidController.touchEnabled) {
             Toast.makeText(
                 this,
-                "Tryb gry jest wyłączony w ustawieniach (⚙) – dotyk nie będzie wysyłany",
+                "Włączony jest tryb zgodności (⚙) – dotyk nie będzie wysyłany",
                 Toast.LENGTH_LONG,
             ).show()
         }
@@ -111,8 +115,13 @@ class GameActivity : Activity(), HidController.Listener {
 
     override fun onHidStateChanged(state: HidController.State, device: BluetoothDevice?) {
         val connected = state == HidController.State.CONNECTED
-        status.text = if (connected) "● Połączono" else "● Brak połączenia"
-        status.setTextColor(getColor(if (connected) R.color.ok else R.color.err))
+        val current = device != null && HidController.hostStatus(device) == HidController.HostStatus.CURRENT
+        status.text = when {
+            !connected -> "● Brak połączenia"
+            current -> "● Połączono"
+            else -> "⚠ Napraw parowanie"
+        }
+        status.setTextColor(getColor(if (!connected) R.color.err else if (current) R.color.ok else R.color.warn))
     }
 
     // ------------------------------------------------------------------ edycja i ustawienia
@@ -159,7 +168,7 @@ class GameActivity : Activity(), HidController.Listener {
 
                 Wskazówka: na telefonie z grą włącz Opcje programisty → „Pokaż dotknięcia”, żeby widzieć, gdzie trafiają palce.
 
-                Ważne: po aktualizacji aplikacji usuń parowanie na obu telefonach i sparuj je ponownie – inaczej drugi telefon nie zobaczy ekranu dotykowego.
+                Jeśli na górze widzisz „⚠ Napraw parowanie”, stuknij ten napis – kreator przeprowadzi Cię przez ponowne sparowanie.
                 """.trimIndent(),
             )
             .setPositiveButton("OK", null)

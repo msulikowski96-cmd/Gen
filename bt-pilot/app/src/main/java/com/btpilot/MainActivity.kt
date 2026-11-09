@@ -13,7 +13,6 @@ import android.content.pm.PackageManager
 import android.content.res.ColorStateList
 import android.os.Build
 import android.os.Bundle
-import android.provider.Settings
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.Gravity
@@ -71,7 +70,6 @@ class MainActivity : Activity(), HidController.Listener {
         setupInput()
         applySettings()
         HidController.touchEnabled = prefs.getBoolean(PREF_TOUCH, true)
-        HidController.gamepadEnabled = prefs.getBoolean(PREF_GAMEPAD, true)
 
         findViewById<Button>(R.id.btnConnect).setOnClickListener { showConnectDialog() }
         findViewById<Button>(R.id.btnSettings).setOnClickListener { showSettingsDialog() }
@@ -169,7 +167,14 @@ class MainActivity : Activity(), HidController.Listener {
             )
             HidController.State.READY -> showStatus("Gotowy. Kliknij „Połącz”.", R.color.warn)
             HidController.State.CONNECTING -> showStatus("Łączenie z $name…", R.color.warn)
-            HidController.State.CONNECTED -> showStatus("Połączono: $name", R.color.ok)
+            HidController.State.CONNECTED -> {
+                val status = device?.let { HidController.hostStatus(it) }
+                if (status == HidController.HostStatus.CURRENT) {
+                    showStatus("Połączono: $name", R.color.ok)
+                } else {
+                    showStatus("Połączono: $name\n⚠ Pad i dotyk mogą nie działać – Połącz → $name → Napraw", R.color.warn)
+                }
+            }
         }
     }
 
@@ -208,50 +213,7 @@ class MainActivity : Activity(), HidController.Listener {
             return
         }
 
-        val bonded = adapter.bondedDevices.orEmpty().sortedBy { safeName(it).lowercase() }
-        val labels = mutableListOf<String>()
-        val actions = mutableListOf<() -> Unit>()
-
-        labels += "📡  Uczyń ten telefon widocznym (sparuj z drugiego)"
-        actions += { makeDiscoverable() }
-
-        for (d in bonded) {
-            val connected = HidController.isConnected && HidController.device == d
-            labels += (if (connected) "✅  " else "📱  ") + safeName(d)
-            actions += { HidController.connect(d) }
-        }
-
-        if (HidController.device != null) {
-            labels += "✖  Rozłącz"
-            actions += { HidController.disconnect() }
-        }
-
-        labels += "🩺  Diagnostyka połączenia"
-        actions += { showDiagnostics() }
-
-        labels += "⚙  Ustawienia Bluetooth"
-        actions += { startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS)) }
-
-        AlertDialog.Builder(this)
-            .setTitle("Połącz z urządzeniem")
-            .setItems(labels.toTypedArray()) { _, which -> actions[which]() }
-            .setNegativeButton("Anuluj", null)
-            .show()
-    }
-
-    private fun makeDiscoverable() {
-        val intent = Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE)
-            .putExtra(BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, 120)
-        try {
-            startActivity(intent)
-            Toast.makeText(
-                this,
-                "Na drugim telefonie: Ustawienia → Bluetooth → sparuj z tym telefonem",
-                Toast.LENGTH_LONG,
-            ).show()
-        } catch (e: Exception) {
-            Toast.makeText(this, "Nie można włączyć widoczności: ${e.message}", Toast.LENGTH_LONG).show()
-        }
+        Pairing.showConnectDialog(this)
     }
 
     // ------------------------------------------------------------------ mysz
@@ -527,19 +489,14 @@ class MainActivity : Activity(), HidController.Listener {
             isChecked = touchpad.invertScroll
         }
         box.addView(invert)
-        val touch = CheckBox(this).apply {
-            text = "Tryb gry 🎮 (ekran dotykowy)"
-            isChecked = HidController.touchEnabled
+        val compat = CheckBox(this).apply {
+            text = "Tryb zgodności (bez dotyku Wild Rift)"
+            isChecked = !HidController.touchEnabled
         }
-        box.addView(touch)
-        val gamepad = CheckBox(this).apply {
-            text = "Pad Xbox 🕹"
-            isChecked = HidController.gamepadEnabled
-        }
-        box.addView(gamepad)
+        box.addView(compat)
         box.addView(TextView(this).apply {
-            text = "Zmiana trybu gry lub pada wymaga usunięcia parowania na obu telefonach i sparowania od nowa. " +
-                "Jeśli nie możesz się połączyć, wyłącz oba i sparuj ponownie."
+            text = "Włącz tylko, jeśli drugi telefon nie chce się połączyć. " +
+                "Po zmianie trzeba ponownie sparować telefony (Połącz → telefon → Napraw)."
             textSize = 12f
             setPadding(0, pad / 4, 0, 0)
         })
@@ -565,15 +522,10 @@ class MainActivity : Activity(), HidController.Listener {
                     .putBoolean(PREF_INVERT, invert.isChecked)
                     .apply()
                 applySettings()
-                if (touch.isChecked != HidController.touchEnabled ||
-                    gamepad.isChecked != HidController.gamepadEnabled
-                ) {
-                    prefs.edit()
-                        .putBoolean(PREF_TOUCH, touch.isChecked)
-                        .putBoolean(PREF_GAMEPAD, gamepad.isChecked)
-                        .apply()
-                    HidController.touchEnabled = touch.isChecked
-                    HidController.gamepadEnabled = gamepad.isChecked
+                val touchOn = !compat.isChecked
+                if (touchOn != HidController.touchEnabled) {
+                    prefs.edit().putBoolean(PREF_TOUCH, touchOn).apply()
+                    HidController.touchEnabled = touchOn
                     HidController.restart(this)
                     showRepairHint()
                 }
@@ -601,39 +553,14 @@ class MainActivity : Activity(), HidController.Listener {
         AlertDialog.Builder(this)
             .setTitle("Sparuj telefony od nowa")
             .setMessage(
-                "1. Na OBU telefonach: Ustawienia → Bluetooth → przy drugim telefonie ⚙ → „Rozłącz parowanie / Zapomnij”.\n" +
-                    "2. Tutaj: Połącz → „Uczyń ten telefon widocznym”.\n" +
-                    "3. Na drugim telefonie: Ustawienia → Bluetooth → wybierz ten telefon i potwierdź parowanie.",
+                "Zmieniła się wersja urządzenia. Na liście w „Połącz” przy telefonach pojawi się ⚠ – " +
+                    "wybierz telefon i kliknij „Napraw parowanie”. Kreator przeprowadzi Cię krok po kroku.",
             )
             .setPositiveButton("OK", null)
             .show()
     }
 
-    private fun showDiagnostics() {
-        val log = HidController.logText().ifEmpty { "(brak wpisów)" }
-        val info = "Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT}), ${Build.MANUFACTURER} ${Build.MODEL}\n" +
-            "Stan: ${HidController.state}, tryb gry: ${if (HidController.touchEnabled) "wł." else "wył."}, " +
-            "pad: ${if (HidController.gamepadEnabled) "wł." else "wył."}\n" +
-            (HidController.lastError?.let { "Błąd: $it\n" } ?: "") + "\n"
-        val text = info + log
-        val view = TextView(this).apply {
-            this.text = text
-            textSize = 11f
-            setTextIsSelectable(true)
-            val p = (16 * resources.displayMetrics.density).toInt()
-            setPadding(p, p / 2, p, 0)
-        }
-        AlertDialog.Builder(this)
-            .setTitle("Diagnostyka")
-            .setView(android.widget.ScrollView(this).apply { addView(view) })
-            .setPositiveButton("Kopiuj") { _, _ ->
-                getSystemService(android.content.ClipboardManager::class.java)
-                    .setPrimaryClip(android.content.ClipData.newPlainText("BT Pilot", text))
-                Toast.makeText(this, "Skopiowano – wklej w czacie", Toast.LENGTH_SHORT).show()
-            }
-            .setNegativeButton("Zamknij", null)
-            .show()
-    }
+    private fun showDiagnostics() = Pairing.showDiagnostics(this)
 
     private companion object {
         const val REQ_PERMISSIONS = 1
@@ -645,6 +572,5 @@ class MainActivity : Activity(), HidController.Listener {
         const val PREF_INVERT = "invert"
         const val PREF_PANEL = "panel_visible"
         const val PREF_TOUCH = "touch_enabled"
-        const val PREF_GAMEPAD = "gamepad_enabled"
     }
 }

@@ -19,12 +19,26 @@ Drugi telefon (albo tablet, komputer, TV) widzi go jak zwykłą mysz i klawiatur
 ## Pierwsze połączenie
 
 1. Uruchom **BT Pilot** na telefonie sterującym i zezwól na dostęp do Bluetooth.
-2. Kliknij **Połącz → „Uczyń ten telefon widocznym”**.
+2. Kliknij **Połącz → „Sparuj nowy telefon” → „Uczyń widocznym”**.
 3. Na **drugim telefonie** wejdź w *Ustawienia → Bluetooth* i sparuj się z pierwszym telefonem.
+   Nie zamykaj BT Pilot podczas parowania.
 4. Po sparowaniu na drugim telefonie pojawi się kursor myszy.
    Jeśli nie pojawi się sam: w BT Pilot kliknij **Połącz** i wybierz drugi telefon z listy.
 
 Później wystarczy kliknąć **Połącz** i wybrać urządzenie z listy sparowanych.
+
+### Lista urządzeń i naprawa parowania
+
+Drugi telefon zapamiętuje, co potrafi BT Pilot (mysz, klawiatura, pad, dotyk), **tylko w chwili
+parowania**. Dlatego BT Pilot pokazuje przy każdym sparowanym telefonie:
+
+- ✅ **gotowy** – wszystko działa,
+- ⚠ **zna starą wersję** – mysz i klawiatura mogą działać, ale pad i dotyk nie,
+- ❔ **nieznana wersja** – parowanie sprzed tej wersji aplikacji.
+
+Przy ⚠ i ❔ wybierz telefon i kliknij **„Napraw parowanie”** – kreator w 3 krokach usunie stare
+parowanie i sparuje telefony od nowa. To samo ostrzeżenie widać na ekranie pada i Wild Rift
+(stuknij je, żeby otworzyć kreator).
 
 ## Sterowanie
 
@@ -45,6 +59,7 @@ Później wystarczy kliknąć **Połącz** i wybrać urządzenie z listy sparowa
   (Enter wysyła Enter, kasowanie kasuje).
 - **⌨** – chowa/pokazuje panel z przyciskami myszy i klawiszami (gładzik robi się wtedy większy).
 - **⚙** – czułość kursora, szybkość i kierunek przewijania.
+  Jest tam też **tryb zgodności** (bez dotyku Wild Rift) – tylko gdy drugi telefon w ogóle nie chce się połączyć.
 
 ## 🕹 Pad Xbox (uniwersalny)
 
@@ -73,7 +88,7 @@ jak **ekran dotykowy drugiego telefonu – do 5 palców naraz** (ruch + umiejęt
 - Dotyk poza kółkami trafia w to samo miejsce ekranu gry (sklep, ulepszanie umiejętności, minimapa).
 
 **Konfiguracja (raz):**
-1. **Usuń parowanie na obu telefonach i sparuj je ponownie** – drugi telefon musi „zobaczyć” nowy ekran dotykowy.
+1. Jeśli na górze ekranu widzisz **⚠ Napraw parowanie** – stuknij i przejdź kreator.
 2. Na telefonie z grą zrób zrzut ekranu w trakcie meczu (np. w treningu) i przenieś go na telefon sterujący.
 3. W trybie gry: **🖼 Tło** → wybierz zrzut, potem **✎ Edytuj** → przeciągnij kółka na przyciski
    ze zrzutu (− / + zmienia rozmiar), **✓ Gotowe**.
