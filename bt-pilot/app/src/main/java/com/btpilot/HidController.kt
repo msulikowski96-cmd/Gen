@@ -242,27 +242,26 @@ object HidController {
         while (rx != 0 || ry != 0) {
             val sx = rx.coerceIn(-127, 127)
             val sy = ry.coerceIn(-127, 127)
-            sendMouse(sx, sy, 0, 0)
+            sendMouse(sx, sy, 0)
             rx -= sx
             ry -= sy
         }
     }
 
+    /** Przewijanie pionowe (poziome nie jest wysyłane – oszczędza miejsce w deskryptorze). */
+    @Suppress("UNUSED_PARAMETER")
     fun mouseScroll(vertical: Int, horizontal: Int) {
         var v = vertical
-        var h = horizontal
-        while (v != 0 || h != 0) {
+        while (v != 0) {
             val sv = v.coerceIn(-127, 127)
-            val sh = h.coerceIn(-127, 127)
-            sendMouse(0, 0, sv, sh)
+            sendMouse(0, 0, sv)
             v -= sv
-            h -= sh
         }
     }
 
     fun mouseButton(button: Int, down: Boolean) {
         mouseButtons = if (down) mouseButtons or button else mouseButtons and button.inv()
-        sendMouse(0, 0, 0, 0)
+        sendMouse(0, 0, 0)
     }
 
     fun click(button: Int) {
@@ -270,12 +269,8 @@ object HidController {
         mouseButton(button, false)
     }
 
-    private fun sendMouse(x: Int, y: Int, wheel: Int, pan: Int) {
-        send(
-            Hid.ID_MOUSE,
-            byteArrayOf(mouseButtons.toByte(), x.toByte(), y.toByte(), wheel.toByte(), pan.toByte()),
-            0,
-        )
+    private fun sendMouse(x: Int, y: Int, wheel: Int) {
+        send(Hid.ID_MOUSE, byteArrayOf(mouseButtons.toByte(), x.toByte(), y.toByte(), wheel.toByte()), 0)
     }
 
     // ------------------------------------------------------------------ klawiatura
@@ -320,7 +315,7 @@ object HidController {
             val o = i * Hid.TOUCH_CONTACT_SIZE
             val x = c.x.coerceIn(0, Hid.TOUCH_MAX_COORD)
             val y = c.y.coerceIn(0, Hid.TOUCH_MAX_COORD)
-            b[o] = if (c.down) 0x03 else 0x00 // dotyk + w zasięgu
+            b[o] = if (c.down) 0x01 else 0x00 // palec dotyka ekranu
             b[o + 1] = c.id.toByte()
             b[o + 2] = (x and 0xFF).toByte()
             b[o + 3] = (x shr 8).toByte()
@@ -385,9 +380,13 @@ object HidController {
             val desc = Hid.descriptor(touchEnabled, true)
             log("Usługa HID gotowa, rejestracja (deskryptor " + desc.size + " B, wersja " +
                 java.lang.Long.toHexString(descriptorFingerprint()) + ")")
+            if (desc.size > Hid.MAX_DESCRIPTOR_SIZE) {
+                log("UWAGA: deskryptor większy niż " + Hid.MAX_DESCRIPTOR_SIZE + " B – może zostać obcięty")
+            }
             val sdp = BluetoothHidDeviceAppSdpSettings(
+                // Krótkie napisy: dzielą ten sam ~600-bajtowy bufor SDP z deskryptorem.
                 "BT Pilot",
-                "Mysz, klawiatura i pad",
+                "BT Pilot",
                 "BT Pilot",
                 BluetoothHidDevice.SUBCLASS1_COMBO,
                 desc,
@@ -467,7 +466,6 @@ object HidController {
                 Hid.ID_CONSUMER -> ByteArray(Hid.CONSUMER_REPORT_SIZE)
                 Hid.ID_TOUCH -> ByteArray(Hid.TOUCH_REPORT_SIZE)
                 Hid.ID_GAMEPAD -> padReport(0, Hid.HAT_NONE, 0, 0, 0, 0, 0, 0)
-                Hid.ID_TOUCH_MAX -> if (feature) byteArrayOf(Hid.TOUCH_CONTACTS.toByte()) else null
                 Hid.ID_WIN8_BLOB -> if (feature) ByteArray(Hid.WIN8_BLOB_SIZE) else null
                 else -> null
             }

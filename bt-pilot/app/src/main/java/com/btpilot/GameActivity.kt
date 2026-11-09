@@ -155,7 +155,7 @@ class GameActivity : Activity(), HidController.Listener {
             .setTitle("Kontroler Wild Rift")
             .setMessage(
                 """
-                Ten ekran działa jak ekran dotykowy drugiego telefonu – do 5 palców naraz.
+                Ten ekran działa jak ekran dotykowy drugiego telefonu – do 3 palców naraz (ruch + umiejętność + atak).
 
                 • Dotknij przycisku (Ruch, Q, W, E, R, Atak…) – na drugim telefonie palec trafi dokładnie w ten przycisk, a dalej podąża za Twoim ruchem (joystick, celowanie).
                 • Dotyk poza przyciskami trafia w to samo miejsce ekranu gry (sklep, ulepszanie umiejętności, minimapa).
