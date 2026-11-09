@@ -13,7 +13,6 @@ import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
-import android.widget.Toast
 
 /** Uniwersalny pad w układzie Xbox. */
 class PadActivity : Activity(), HidController.Listener {
@@ -33,6 +32,10 @@ class PadActivity : Activity(), HidController.Listener {
             textSize = 12f
             setPadding(dp(10), 0, dp(10), 0)
             gravity = Gravity.CENTER_VERTICAL
+            setOnClickListener {
+                val d = HidController.device
+                if (d != null) Pairing.chooseDevice(this@PadActivity, d) else Pairing.showConnectDialog(this@PadActivity)
+            }
         }
         val bar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -61,14 +64,6 @@ class PadActivity : Activity(), HidController.Listener {
             },
         )
         setContentView(root)
-
-        if (!HidController.gamepadEnabled) {
-            Toast.makeText(
-                this,
-                "Pad jest wyłączony w ustawieniach (⚙) – przyciski nie będą wysyłane",
-                Toast.LENGTH_LONG,
-            ).show()
-        }
     }
 
     override fun onStart() {
@@ -105,8 +100,13 @@ class PadActivity : Activity(), HidController.Listener {
 
     override fun onHidStateChanged(state: HidController.State, device: BluetoothDevice?) {
         val connected = state == HidController.State.CONNECTED
-        status.text = if (connected) "● Pad połączony" else "● Brak połączenia"
-        status.setTextColor(getColor(if (connected) R.color.ok else R.color.err))
+        val current = device != null && HidController.hostStatus(device) == HidController.HostStatus.CURRENT
+        status.text = when {
+            !connected -> "● Brak połączenia – stuknij, aby połączyć"
+            current -> "● Pad połączony"
+            else -> "⚠ Drugi telefon może nie znać pada – stuknij, aby naprawić"
+        }
+        status.setTextColor(getColor(if (!connected) R.color.err else if (current) R.color.ok else R.color.warn))
     }
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()

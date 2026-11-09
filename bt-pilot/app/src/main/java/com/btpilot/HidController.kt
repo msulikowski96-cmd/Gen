@@ -7,12 +7,18 @@ import android.bluetooth.BluetoothHidDevice
 import android.bluetooth.BluetoothHidDeviceAppSdpSettings
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothProfile
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.content.SharedPreferences
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import java.util.zip.CRC32
 
 /**
  * Rejestruje telefon jako urządzenie Bluetooth HID (mysz + klawiatura)
@@ -25,6 +31,9 @@ import java.util.concurrent.Executors
 object HidController {
 
     enum class State { STARTING, NO_BLUETOOTH, NOT_SUPPORTED, READY, CONNECTING, CONNECTED }
+
+    /** Czy sparowany telefon zna aktualną wersję urządzenia (mysz, klawiatura, pad, dotyk). */
+    enum class HostStatus { CURRENT, OUTDATED, UNKNOWN }
 
     fun interface Listener {
         fun onHidStateChanged(state: State, device: BluetoothDevice?)
@@ -53,11 +62,69 @@ object HidController {
 
     private var mouseButtons = 0
 
-    /** Czy urządzenie ma też ekran dotykowy (tryb gry). Zmiana wymaga ponownego sparowania. */
+    /**
+     * Czy urządzenie ma ekran dotykowy (tryb Wild Rift). Wyłączone = tryb zgodności.
+     * Pad, mysz i klawiatura są zawsze. Zmiana wymaga ponownego sparowania.
+     */
     @Volatile var touchEnabled = true
 
-    /** Czy urządzenie ma też pad w układzie Xbox. Zmiana wymaga ponownego sparowania. */
-    @Volatile var gamepadEnabled = true
+    private var prefs: SharedPreferences? = null
+    private var bondReceiverRegistered = false
+
+    /** Odcisk aktualnego deskryptora – telefon-host pamięta deskryptor z chwili parowania. */
+    fun descriptorFingerprint(): Long =
+        CRC32().apply { update(Hid.descriptor(touchEnabled, true)) }.value
+
+    fun hostStatus(d: BluetoothDevice): HostStatus {
+        val p = prefs ?: return HostStatus.UNKNOWN
+        val key = HOST_PREFIX + d.address
+        if (!p.contains(key)) return HostStatus.UNKNOWN
+        return if (p.getLong(key, -1) == descriptorFingerprint()) HostStatus.CURRENT else HostStatus.OUTDATED
+    }
+
+    private fun rememberHost(d: BluetoothDevice, fingerprint: Long) {
+        prefs?.edit()?.putLong(HOST_PREFIX + d.address, fingerprint)?.apply()
+    }
+
+    private fun forgetHost(d: BluetoothDevice) {
+        prefs?.edit()?.remove(HOST_PREFIX + d.address)?.apply()
+    }
+
+    /** Śledzi parowanie: zapisuje, z jaką wersją deskryptora drugi telefon się sparował. */
+    private val bondReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            val d: BluetoothDevice = (
+                if (Build.VERSION.SDK_INT >= 33) {
+                    intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE, BluetoothDevice::class.java)
+                } else {
+                    @Suppress("DEPRECATION")
+                    intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE)
+                }
+                ) ?: return
+            when (intent.getIntExtra(BluetoothDevice.EXTRA_BOND_STATE, BluetoothDevice.ERROR)) {
+                BluetoothDevice.BOND_BONDED -> {
+                    // Jeśli aplikacja nie była zarejestrowana, drugi telefon nie zobaczył pada ani myszy.
+                    val fp = if (registered) descriptorFingerprint() else 0L
+                    rememberHost(d, fp)
+                    log("Sparowano: " + name(d) + (if (registered) " – wersja aktualna" else " – BT Pilot nie był aktywny!"))
+                    notifyListeners()
+                }
+                BluetoothDevice.BOND_NONE -> {
+                    forgetHost(d)
+                    log("Usunięto parowanie: " + name(d))
+                    notifyListeners()
+                }
+            }
+        }
+    }
+
+    /** Próbuje usunąć parowanie z tej strony (nie każdy telefon na to pozwala). */
+    fun removeBond(d: BluetoothDevice): Boolean = try {
+        (d.javaClass.getMethod("removeBond").invoke(d) as? Boolean) == true
+    } catch (e: Exception) {
+        log("removeBond niedostępne: " + (e.cause?.javaClass?.simpleName ?: e.javaClass.simpleName))
+        false
+    }
 
     // ------------------------------------------------------------------ dziennik (diagnostyka)
 
@@ -89,6 +156,16 @@ object HidController {
 
     fun start(context: Context) {
         val ctx = context.applicationContext
+        if (prefs == null) prefs = ctx.getSharedPreferences("hosts", Context.MODE_PRIVATE)
+        if (!bondReceiverRegistered) {
+            val filter = IntentFilter(BluetoothDevice.ACTION_BOND_STATE_CHANGED)
+            if (Build.VERSION.SDK_INT >= 33) {
+                ctx.registerReceiver(bondReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                ctx.registerReceiver(bondReceiver, filter)
+            }
+            bondReceiverRegistered = true
+        }
         val a = adapter ?: ctx.getSystemService(BluetoothManager::class.java)?.adapter
         adapter = a
         if (a == null) {
@@ -98,8 +175,7 @@ object HidController {
         if (proxyRequested) return
         proxyRequested = true
         log("Start: Bluetooth " + (if (a.isEnabled) "włączony" else "WYŁĄCZONY") +
-            ", ekran dotykowy: " + (if (touchEnabled) "tak" else "nie") +
-            ", pad: " + (if (gamepadEnabled) "tak" else "nie"))
+            ", ekran dotykowy: " + (if (touchEnabled) "tak" else "nie (tryb zgodności)"))
         if (!a.getProfileProxy(ctx, serviceListener, BluetoothProfile.HID_DEVICE)) {
             log("BŁĄD: getProfileProxy(HID_DEVICE) = false")
             proxyRequested = false
@@ -262,7 +338,6 @@ object HidController {
      * albo [Hid.HAT_NONE]; gałki -127..127, spusty 0..255.
      */
     fun gamepad(buttons: Int, hat: Int, lx: Int, ly: Int, rx: Int, ry: Int, lt: Int, rt: Int) {
-        if (!gamepadEnabled) return
         send(Hid.ID_GAMEPAD, padReport(buttons, hat, lx, ly, rx, ry, lt, rt), 0)
     }
 
@@ -300,16 +375,19 @@ object HidController {
         main.post { listeners.forEach { it.onHidStateChanged(s, d) } }
     }
 
+    private fun notifyListeners() = setState(state, device)
+
     private val serviceListener = object : BluetoothProfile.ServiceListener {
         override fun onServiceConnected(profile: Int, proxy: BluetoothProfile) {
             if (profile != BluetoothProfile.HID_DEVICE) return
             val h = proxy as BluetoothHidDevice
             hid = h
-            val desc = Hid.descriptor(touchEnabled, gamepadEnabled)
-            log("Usługa HID gotowa, rejestracja (deskryptor " + desc.size + " B)")
+            val desc = Hid.descriptor(touchEnabled, true)
+            log("Usługa HID gotowa, rejestracja (deskryptor " + desc.size + " B, wersja " +
+                java.lang.Long.toHexString(descriptorFingerprint()) + ")")
             val sdp = BluetoothHidDeviceAppSdpSettings(
                 "BT Pilot",
-                "Mysz i klawiatura",
+                "Mysz, klawiatura i pad",
                 "BT Pilot",
                 BluetoothHidDevice.SUBCLASS1_COMBO,
                 desc,
@@ -363,7 +441,8 @@ object HidController {
                 BluetoothProfile.STATE_DISCONNECTED -> "ROZŁĄCZONO"
                 else -> newState.toString()
             }
-            log("Stan połączenia: " + stateName + " – " + name(dev))
+            log("Stan połączenia: " + stateName + " – " + name(dev) +
+                (if (newState == BluetoothProfile.STATE_CONNECTED) ", wersja u hosta: " + hostStatus(dev) else ""))
             when (newState) {
                 BluetoothProfile.STATE_CONNECTED -> {
                     mouseButtons = 0
@@ -415,4 +494,5 @@ object HidController {
     }
 
     private const val KEY_DELAY_MS = 6L
+    private const val HOST_PREFIX = "host_"
 }
