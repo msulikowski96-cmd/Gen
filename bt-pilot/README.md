@@ -48,7 +48,7 @@ parowanie i sparuje telefony od nowa. To samo ostrzeżenie widać na ekranie pad
 | stuknięcie 1 palcem | lewy klik |
 | stuknięcie 2 palcami | prawy klik |
 | stuknięcie 3 palcami | środkowy klik |
-| przesuwanie 2 palcami | przewijanie (pion i poziom) |
+| przesuwanie 2 palcami | przewijanie |
 | przytrzymanie i przesunięcie | przeciąganie (lewy przycisk wciśnięty) |
 
 - **Przyciski Lewy / Środ. / Prawy** działają jak w prawdziwej myszy – można je przytrzymać.
@@ -79,7 +79,7 @@ Kontroler → obsługa pada ogólnego) albo program typu x360ce.
 ## 🎮 Tryb gry – kontroler pod Wild Rift
 
 **🎮 → Wild Rift** otwiera kontroler pod *League of Legends: Wild Rift*. Telefon sterujący działa wtedy
-jak **ekran dotykowy drugiego telefonu – do 5 palców naraz** (ruch + umiejętność + atak jednocześnie).
+jak **ekran dotykowy drugiego telefonu – do 3 palców naraz** (ruch + umiejętność + atak jednocześnie).
 
 - Na ekranie są kółka z konfiguracji Wild Rift: **Ruch** (joystick), **Atak**, **Q W E R**,
   czary przywoływacza **D F**, **Przedmiot**, **Ward**, **Powrót**, **Sklep**.

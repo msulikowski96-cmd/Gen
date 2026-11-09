@@ -15,7 +15,7 @@ import kotlin.math.hypot
 /**
  * Kontroler gry: ekran telefonu odpowiada 1:1 ekranowi gry na drugim telefonie.
  *
- * Każdy palec staje się palcem na drugim telefonie (do 5 naraz). Jeśli dotkniesz
+ * Każdy palec staje się palcem na drugim telefonie (do 3 naraz). Jeśli dotkniesz
  * przycisku z konfiguracji (Ruch, Q, W, E, R, Atak…), dotyk na drugim telefonie zaczyna się
  * dokładnie w środku tego przycisku, a dalej podąża za ruchem palca – tak działa celowanie
  * umiejętnościami i joystick. Dotyk poza przyciskami trafia w to samo miejsce ekranu gry.
