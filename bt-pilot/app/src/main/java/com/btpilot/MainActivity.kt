@@ -71,12 +71,11 @@ class MainActivity : Activity(), HidController.Listener {
         setupInput()
         applySettings()
         HidController.touchEnabled = prefs.getBoolean(PREF_TOUCH, true)
+        HidController.gamepadEnabled = prefs.getBoolean(PREF_GAMEPAD, true)
 
         findViewById<Button>(R.id.btnConnect).setOnClickListener { showConnectDialog() }
         findViewById<Button>(R.id.btnSettings).setOnClickListener { showSettingsDialog() }
-        findViewById<Button>(R.id.btnGame).setOnClickListener {
-            startActivity(Intent(this, GameActivity::class.java))
-        }
+        findViewById<Button>(R.id.btnGame).setOnClickListener { showGameChooser() }
 
         ensurePermissions()
     }
@@ -533,9 +532,14 @@ class MainActivity : Activity(), HidController.Listener {
             isChecked = HidController.touchEnabled
         }
         box.addView(touch)
+        val gamepad = CheckBox(this).apply {
+            text = "Pad Xbox 🕹"
+            isChecked = HidController.gamepadEnabled
+        }
+        box.addView(gamepad)
         box.addView(TextView(this).apply {
-            text = "Zmiana trybu gry wymaga usunięcia parowania na obu telefonach i sparowania od nowa. " +
-                "Jeśli nie możesz się połączyć, wyłącz tryb gry i sparuj ponownie."
+            text = "Zmiana trybu gry lub pada wymaga usunięcia parowania na obu telefonach i sparowania od nowa. " +
+                "Jeśli nie możesz się połączyć, wyłącz oba i sparuj ponownie."
             textSize = 12f
             setPadding(0, pad / 4, 0, 0)
         })
@@ -561,12 +565,33 @@ class MainActivity : Activity(), HidController.Listener {
                     .putBoolean(PREF_INVERT, invert.isChecked)
                     .apply()
                 applySettings()
-                if (touch.isChecked != HidController.touchEnabled) {
-                    prefs.edit().putBoolean(PREF_TOUCH, touch.isChecked).apply()
+                if (touch.isChecked != HidController.touchEnabled ||
+                    gamepad.isChecked != HidController.gamepadEnabled
+                ) {
+                    prefs.edit()
+                        .putBoolean(PREF_TOUCH, touch.isChecked)
+                        .putBoolean(PREF_GAMEPAD, gamepad.isChecked)
+                        .apply()
                     HidController.touchEnabled = touch.isChecked
+                    HidController.gamepadEnabled = gamepad.isChecked
                     HidController.restart(this)
                     showRepairHint()
                 }
+            }
+            .setNegativeButton("Anuluj", null)
+            .show()
+    }
+
+    private fun showGameChooser() {
+        val items = arrayOf(
+            "🕹  Pad Xbox (uniwersalny)",
+            "⚔  Wild Rift (ekran dotykowy)",
+        )
+        AlertDialog.Builder(this)
+            .setTitle("Tryb gry")
+            .setItems(items) { _, which ->
+                val target = if (which == 0) PadActivity::class.java else GameActivity::class.java
+                startActivity(Intent(this, target))
             }
             .setNegativeButton("Anuluj", null)
             .show()
@@ -587,7 +612,8 @@ class MainActivity : Activity(), HidController.Listener {
     private fun showDiagnostics() {
         val log = HidController.logText().ifEmpty { "(brak wpisów)" }
         val info = "Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT}), ${Build.MANUFACTURER} ${Build.MODEL}\n" +
-            "Stan: ${HidController.state}, tryb gry: ${if (HidController.touchEnabled) "wł." else "wył."}\n" +
+            "Stan: ${HidController.state}, tryb gry: ${if (HidController.touchEnabled) "wł." else "wył."}, " +
+            "pad: ${if (HidController.gamepadEnabled) "wł." else "wył."}\n" +
             (HidController.lastError?.let { "Błąd: $it\n" } ?: "") + "\n"
         val text = info + log
         val view = TextView(this).apply {
@@ -619,5 +645,6 @@ class MainActivity : Activity(), HidController.Listener {
         const val PREF_INVERT = "invert"
         const val PREF_PANEL = "panel_visible"
         const val PREF_TOUCH = "touch_enabled"
+        const val PREF_GAMEPAD = "gamepad_enabled"
     }
 }
