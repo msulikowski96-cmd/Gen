@@ -35,6 +35,12 @@ i poruszaj gałką.
 
 ## Gdy coś nie działa
 
+- Podczas działania w powiadomieniach widać **„BT Pad”** – to celowe: Android wyłącza pad
+  Bluetooth, gdy aplikacja traci pierwszy plan (np. przy systemowym okienku), a usługa w tle temu zapobiega.
+  „Zakończ” w powiadomieniu wyłącza pad.
+- Napis **„Pad nie wystartował”** albo długie **„Uruchamianie…”** – stuknij go → „Spróbuj ponownie”.
+  Pomaga też zamknięcie BT Pilot oraz wyłączenie i włączenie Bluetooth.
+
 - Napis **⚠ … nie widzi pada** – stuknij go i przejdź kreator „Napraw parowanie”
   (telefon z grą pamięta stare parowanie sprzed BT Pad).
 - **⚙ → Diagnostyka → Kopiuj** – dziennik połączenia do wysłania.
