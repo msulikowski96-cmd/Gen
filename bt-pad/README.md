@@ -25,6 +25,16 @@ Potem BT Pad sam łączy się z ostatnim telefonem po uruchomieniu.
 - **View**, **Menu**, **Xbox** – na środku.
 - Wiele palców naraz.
 
+## Ustawienia (⚙)
+
+- **Czułość gałek** – ile ruchu kciuka daje pełne wychylenie.
+- **LT / RT od razu z pełną siłą** – dla gier, w których spust ma działać jak zwykły przycisk.
+- **Celowanie ruchem telefonu** – żyroskop steruje prawą gałką: zawsze albo tylko gdy trzymasz LT.
+  Jest suwak czułości i odwracanie osi.
+- **Przesuń / zmień rozmiar przycisków** – przeciągasz przyciski w nowe miejsca, − / + zmienia
+  rozmiar zaznaczonego, „Domyślny układ” cofa zmiany.
+- **Wstecz** trzeba nacisnąć dwa razy, żeby zamknąć pada (ochrona przed przypadkowym wyjściem).
+
 ## GeForce NOW
 
 Uruchom grę na telefonie z GeForce NOW i naciśnij dowolny przycisk na padzie – aplikacja
